@@ -1,0 +1,43 @@
+[package]
+name = "highway"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["alloc"]
+alloc = ["dep:allocator-api2"]
+
+[lints.rust]
+missing_docs = "warn"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+bare_trait_objects = "warn"
+elided_lifetimes_in_paths = "warn"
+ellipsis_inclusive_range_patterns = "warn"
+explicit_outlives_requirements = "warn"
+unused_extern_crates = "warn"
+
+
+[lints.clippy]
+doc_markdown = "allow"
+manual_map = "allow"
+missing_errors_doc = "allow"
+missing_safety_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+option_if_let_else = "allow"
+undocumented_unsafe_blocks = "warn"
+
+borrow_as_ptr = "warn"
+manual_let_else = "warn"
+needless_continue = "warn"
+ptr_as_ptr = "warn"
+ptr_cast_constness = "warn"
+redundant_else = "warn"
+ref_as_ptr = "warn"
+semicolon_if_nothing_returned = "warn"
+str_to_string = "warn"
+
+
+[dependencies]
+allocator-api2 = { version = "0.2", optional = true }
