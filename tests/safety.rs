@@ -117,7 +117,8 @@ fn load_aligned_slice_panics_on_misaligned() {
     let buf: Vec<f32> = (0..256).map(|i| i as f32).collect();
     let misaligned = &buf[1..]; // +4 bytes from buf start
 
-    let result = std::panic::catch_unwind(|| dispatch(LoadAligned { data: misaligned }));
+    let result =
+        std::panic::catch_unwind(|| dispatch(LoadAligned { data: misaligned }));
     assert!(
         result.is_err(),
         "load_aligned_slice must panic on a misaligned slice (target {best:?})"

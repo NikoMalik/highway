@@ -10,10 +10,12 @@
 use core::arch::x86_64::*;
 use core::marker::PhantomData;
 
-use crate::lane::{FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane};
+use crate::lane::{
+    FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane,
+};
 use crate::ops::{
-    SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdFloat, SimdMask, SimdMemory,
-    SimdReduce, SimdShuffle,
+    SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdFloat,
+    SimdMask, SimdMemory, SimdReduce, SimdShuffle,
 };
 use crate::simd::{self, Simd};
 use crate::{A16, A32, Aligned};
@@ -124,7 +126,10 @@ use crate::lane::is_type;
 
 #[inline(always)]
 const fn is_signed<T: Lane>() -> bool {
-    is_type::<T, i8>() || is_type::<T, i16>() || is_type::<T, i32>() || is_type::<T, i64>()
+    is_type::<T, i8>()
+        || is_type::<T, i16>()
+        || is_type::<T, i32>()
+        || is_type::<T, i64>()
 }
 
 /// LUT for AVX2 Compress of 8 * u32 lanes.
@@ -274,7 +279,12 @@ unsafe impl SimdCore for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn insert_lane<T: Lane>(self, v: V256<T>, index: usize, value: T) -> V256<T> {
+    unsafe fn insert_lane<T: Lane>(
+        self,
+        v: V256<T>,
+        index: usize,
+        value: T,
+    ) -> V256<T> {
         unsafe {
             let mut arr: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
             _mm256_store_si256(arr.as_mut_ptr().cast(), v.raw);
@@ -288,10 +298,12 @@ unsafe impl SimdCore for Avx2 {
         unsafe {
             let indices = match T::BYTES {
                 1 => _mm256_setr_epi8(
-                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                    22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
                 ),
-                2 => _mm256_setr_epi16(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+                2 => _mm256_setr_epi16(
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                ),
                 4 => _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7),
                 8 => _mm256_setr_epi64x(0, 1, 2, 3),
                 _ => unreachable!(),
@@ -372,19 +384,29 @@ unsafe impl SimdMemory for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn masked_load<T: Lane>(self, mask: M256<T>, ptr: *const T) -> V256<T> {
+    unsafe fn masked_load<T: Lane>(
+        self,
+        mask: M256<T>,
+        ptr: *const T,
+    ) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 4 => {
                     if is_type::<T, f32>() {
-                        _mm256_castps_si256(_mm256_maskload_ps(ptr.cast(), mask.raw))
+                        _mm256_castps_si256(_mm256_maskload_ps(
+                            ptr.cast(),
+                            mask.raw,
+                        ))
                     } else {
                         _mm256_maskload_epi32(ptr.cast(), mask.raw)
                     }
                 }
                 8 => {
                     if is_type::<T, f64>() {
-                        _mm256_castpd_si256(_mm256_maskload_pd(ptr.cast(), mask.raw))
+                        _mm256_castpd_si256(_mm256_maskload_pd(
+                            ptr.cast(),
+                            mask.raw,
+                        ))
                     } else {
                         _mm256_maskload_epi64(ptr.cast(), mask.raw)
                     }
@@ -400,19 +422,32 @@ unsafe impl SimdMemory for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn blended_store<T: Lane>(self, v: V256<T>, mask: M256<T>, ptr: *mut T) {
+    unsafe fn blended_store<T: Lane>(
+        self,
+        v: V256<T>,
+        mask: M256<T>,
+        ptr: *mut T,
+    ) {
         unsafe {
             match T::BYTES {
                 4 => {
                     if is_type::<T, f32>() {
-                        _mm256_maskstore_ps(ptr.cast(), mask.raw, _mm256_castsi256_ps(v.raw));
+                        _mm256_maskstore_ps(
+                            ptr.cast(),
+                            mask.raw,
+                            _mm256_castsi256_ps(v.raw),
+                        );
                     } else {
                         _mm256_maskstore_epi32(ptr.cast(), mask.raw, v.raw);
                     }
                 }
                 8 => {
                     if is_type::<T, f64>() {
-                        _mm256_maskstore_pd(ptr.cast(), mask.raw, _mm256_castsi256_pd(v.raw));
+                        _mm256_maskstore_pd(
+                            ptr.cast(),
+                            mask.raw,
+                            _mm256_castsi256_pd(v.raw),
+                        );
                     } else {
                         _mm256_maskstore_epi64(ptr.cast(), mask.raw, v.raw);
                     }
@@ -441,7 +476,10 @@ unsafe impl SimdMemory for Avx2 {
                         _mm256_i32gather_ps::<4>(base.cast::<f32>(), idx.raw),
                     ))
                 } else {
-                    V256::from_raw(_mm256_i32gather_epi32::<4>(base.cast::<i32>(), idx.raw))
+                    V256::from_raw(_mm256_i32gather_epi32::<4>(
+                        base.cast::<i32>(),
+                        idx.raw,
+                    ))
                 }
             } else if T::BYTES == 8 {
                 let idx128 = _mm256_castsi256_si128(idx.raw); // only need 4 indices
@@ -450,7 +488,10 @@ unsafe impl SimdMemory for Avx2 {
                         _mm256_i32gather_pd::<8>(base.cast::<f64>(), idx128),
                     ))
                 } else {
-                    V256::from_raw(_mm256_i32gather_epi64::<8>(base.cast::<i64>(), idx128))
+                    V256::from_raw(_mm256_i32gather_epi64::<8>(
+                        base.cast::<i64>(),
+                        idx128,
+                    ))
                 }
             } else {
                 // scalar fallback for u8/u16 etc
@@ -458,7 +499,8 @@ unsafe impl SimdMemory for Avx2 {
                 let lanes = (32 / T::BYTES).min(8);
                 let mut idx_arr = [0i32; 8];
                 _mm256_storeu_si256(idx_arr.as_mut_ptr().cast(), idx.raw);
-                let mut result: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                let mut result: Aligned<A32, [u8; 32]> =
+                    Aligned::new([0u8; 32]);
                 for i in 0..lanes {
                     let src = base.offset(idx_arr[i] as isize);
                     core::ptr::copy_nonoverlapping(
@@ -749,7 +791,11 @@ unsafe impl SimdMemory for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn load_expand<T: Lane>(self, mask: M256<T>, ptr: *const T) -> V256<T> {
+    unsafe fn load_expand<T: Lane>(
+        self,
+        mask: M256<T>,
+        ptr: *const T,
+    ) -> V256<T> {
         unsafe {
             let loaded = self.load_u(ptr);
             self.expand(loaded, mask)
@@ -836,10 +882,12 @@ unsafe impl SimdArith for Avx2 {
                     let mask = _mm256_set1_epi16(0x00FF);
                     let a_lo = _mm256_and_si256(a.raw, mask);
                     let b_lo = _mm256_and_si256(b.raw, mask);
-                    let mul_lo = _mm256_and_si256(_mm256_mullo_epi16(a_lo, b_lo), mask);
+                    let mul_lo =
+                        _mm256_and_si256(_mm256_mullo_epi16(a_lo, b_lo), mask);
                     let a_hi = _mm256_srli_epi16(a.raw, 8);
                     let b_hi = _mm256_srli_epi16(b.raw, 8);
-                    let mul_hi = _mm256_slli_epi16(_mm256_mullo_epi16(a_hi, b_hi), 8);
+                    let mul_hi =
+                        _mm256_slli_epi16(_mm256_mullo_epi16(a_hi, b_hi), 8);
                     _mm256_or_si256(mul_lo, mul_hi)
                 }
                 2 => _mm256_mullo_epi16(a.raw, b.raw),
@@ -916,7 +964,8 @@ unsafe impl SimdArith for Avx2 {
                     if is_type::<T, u32>() {
                         // Unsigned: saturated_add(a, b) = a + min(b, ~a)
                         // ~a is the max value we can add without overflow
-                        let not_a = _mm256_xor_si256(a.raw, _mm256_set1_epi8(!0));
+                        let not_a =
+                            _mm256_xor_si256(a.raw, _mm256_set1_epi8(!0));
                         let clamped_b = _mm256_min_epu32(b.raw, not_a);
                         _mm256_add_epi32(a.raw, clamped_b)
                     } else {
@@ -948,7 +997,8 @@ unsafe impl SimdArith for Avx2 {
                     if is_type::<T, u64>() {
                         // Unsigned u64: saturated_add(a, b) = a + min(b, ~a)
                         // No _mm256_min_epu64 in AVX2, use comparison
-                        let not_a = _mm256_xor_si256(a.raw, _mm256_set1_epi8(!0));
+                        let not_a =
+                            _mm256_xor_si256(a.raw, _mm256_set1_epi8(!0));
                         // Unsigned 64-bit compare: flip sign bits and use signed compare
                         let sign_flip = _mm256_set1_epi64x(i64::MIN);
                         let not_a_s = _mm256_xor_si256(not_a, sign_flip);
@@ -973,11 +1023,15 @@ unsafe impl SimdArith for Avx2 {
                         // Sign of 64-bit value is in bit 63 = high bit of high dword
                         let overflow_sign = _mm256_srai_epi32(overflow, 31);
                         // Broadcast the sign of the high dword to both dwords: shuffle [1,1,3,3,5,5,7,7]
-                        let overflow_mask = _mm256_shuffle_epi32(overflow_sign, 0xF5);
+                        let overflow_mask =
+                            _mm256_shuffle_epi32(overflow_sign, 0xF5);
 
                         let a_sign = _mm256_srai_epi32(a.raw, 31);
                         let a_sign_mask = _mm256_shuffle_epi32(a_sign, 0xF5);
-                        let sat_val = _mm256_xor_si256(_mm256_set1_epi64x(i64::MAX), a_sign_mask);
+                        let sat_val = _mm256_xor_si256(
+                            _mm256_set1_epi64x(i64::MAX),
+                            a_sign_mask,
+                        );
                         _mm256_or_si256(
                             _mm256_and_si256(overflow_mask, sat_val),
                             _mm256_andnot_si256(overflow_mask, sum),
@@ -1025,7 +1079,10 @@ unsafe impl SimdArith for Avx2 {
                         let underflow_mask = _mm256_srai_epi32(underflow, 31);
                         let a_sign = _mm256_srai_epi32(a.raw, 31);
                         // sat_val = a >= 0 ? i32::MAX : i32::MIN
-                        let sat_val = _mm256_xor_si256(_mm256_set1_epi32(i32::MAX), a_sign);
+                        let sat_val = _mm256_xor_si256(
+                            _mm256_set1_epi32(i32::MAX),
+                            a_sign,
+                        );
                         _mm256_or_si256(
                             _mm256_and_si256(underflow_mask, sat_val),
                             _mm256_andnot_si256(underflow_mask, diff),
@@ -1055,11 +1112,15 @@ unsafe impl SimdArith for Avx2 {
                             _mm256_xor_si256(a.raw, diff),
                         );
                         let underflow_sign = _mm256_srai_epi32(underflow, 31);
-                        let underflow_mask = _mm256_shuffle_epi32(underflow_sign, 0xF5);
+                        let underflow_mask =
+                            _mm256_shuffle_epi32(underflow_sign, 0xF5);
 
                         let a_sign = _mm256_srai_epi32(a.raw, 31);
                         let a_sign_mask = _mm256_shuffle_epi32(a_sign, 0xF5);
-                        let sat_val = _mm256_xor_si256(_mm256_set1_epi64x(i64::MAX), a_sign_mask);
+                        let sat_val = _mm256_xor_si256(
+                            _mm256_set1_epi64x(i64::MAX),
+                            a_sign_mask,
+                        );
                         _mm256_or_si256(
                             _mm256_and_si256(underflow_mask, sat_val),
                             _mm256_andnot_si256(underflow_mask, diff),
@@ -1088,7 +1149,8 @@ unsafe impl SimdArith for Avx2 {
                     4 => _mm256_abs_epi32(v.raw),
                     8 => {
                         // No _mm256_abs_epi64 in AVX2; emulate
-                        let sign = _mm256_cmpgt_epi64(_mm256_setzero_si256(), v.raw);
+                        let sign =
+                            _mm256_cmpgt_epi64(_mm256_setzero_si256(), v.raw);
                         _mm256_sub_epi64(_mm256_xor_si256(v.raw, sign), sign)
                     }
                     _ => unreachable!(),
@@ -1162,7 +1224,10 @@ unsafe impl SimdArith for Avx2 {
                     8 => {
                         // Emulate 64-bit min
                         let lt = self.lt::<T>(a, b).raw;
-                        _mm256_or_si256(_mm256_and_si256(lt, a.raw), _mm256_andnot_si256(lt, b.raw))
+                        _mm256_or_si256(
+                            _mm256_and_si256(lt, a.raw),
+                            _mm256_andnot_si256(lt, b.raw),
+                        )
                     }
                     _ => unreachable!(),
                 }
@@ -1209,7 +1274,10 @@ unsafe impl SimdArith for Avx2 {
                     }
                     8 => {
                         let gt = self.gt::<T>(a, b).raw;
-                        _mm256_or_si256(_mm256_and_si256(gt, a.raw), _mm256_andnot_si256(gt, b.raw))
+                        _mm256_or_si256(
+                            _mm256_and_si256(gt, a.raw),
+                            _mm256_andnot_si256(gt, b.raw),
+                        )
                     }
                     _ => unreachable!(),
                 }
@@ -1236,8 +1304,10 @@ unsafe impl SimdArith for Avx2 {
                         let hi_odd = _mm256_and_si256(prod_odd, mask_hi);
                         _mm256_or_si256(hi_even, hi_odd)
                     } else {
-                        let a_even = _mm256_srai_epi16(_mm256_slli_epi16(a.raw, 8), 8);
-                        let b_even = _mm256_srai_epi16(_mm256_slli_epi16(b.raw, 8), 8);
+                        let a_even =
+                            _mm256_srai_epi16(_mm256_slli_epi16(a.raw, 8), 8);
+                        let b_even =
+                            _mm256_srai_epi16(_mm256_slli_epi16(b.raw, 8), 8);
                         let prod_even = _mm256_mullo_epi16(a_even, b_even);
                         let hi_even = _mm256_srli_epi16(prod_even, 8);
                         let a_odd = _mm256_srai_epi16(a.raw, 8);
@@ -1261,7 +1331,8 @@ unsafe impl SimdArith for Avx2 {
                         let b_odd = _mm256_srli_epi64(b.raw, 32);
                         let p_odd = _mm256_mul_epu32(a_odd, b_odd);
                         let hi_even = _mm256_srli_epi64(p_even, 32);
-                        let mask_hi32 = _mm256_set_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
+                        let mask_hi32 =
+                            _mm256_set_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
                         let hi_odd = _mm256_and_si256(p_odd, mask_hi32);
                         _mm256_or_si256(hi_even, hi_odd)
                     } else {
@@ -1271,7 +1342,8 @@ unsafe impl SimdArith for Avx2 {
                         let b_odd = _mm256_srli_epi64(b.raw, 32);
                         let p_odd = _mm256_mul_epi32(a_odd, b_odd);
                         let hi_even = _mm256_srli_epi64(p_even, 32);
-                        let mask_hi32 = _mm256_set_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
+                        let mask_hi32 =
+                            _mm256_set_epi32(-1, 0, -1, 0, -1, 0, -1, 0);
                         let hi_odd = _mm256_and_si256(p_odd, mask_hi32);
                         _mm256_or_si256(hi_even, hi_odd)
                     }
@@ -1292,15 +1364,19 @@ unsafe impl SimdArith for Avx2 {
                     // Uses logical right shift since T: UnsignedLane
                     let a_half = _mm256_srli_epi32(a.raw, 1);
                     let b_half = _mm256_srli_epi32(b.raw, 1);
-                    let carry =
-                        _mm256_and_si256(_mm256_or_si256(a.raw, b.raw), _mm256_set1_epi32(1));
+                    let carry = _mm256_and_si256(
+                        _mm256_or_si256(a.raw, b.raw),
+                        _mm256_set1_epi32(1),
+                    );
                     _mm256_add_epi32(_mm256_add_epi32(a_half, b_half), carry)
                 }
                 8 => {
                     let a_half = _mm256_srli_epi64(a.raw, 1);
                     let b_half = _mm256_srli_epi64(b.raw, 1);
-                    let carry =
-                        _mm256_and_si256(_mm256_or_si256(a.raw, b.raw), _mm256_set1_epi64x(1));
+                    let carry = _mm256_and_si256(
+                        _mm256_or_si256(a.raw, b.raw),
+                        _mm256_set1_epi64x(1),
+                    );
                     _mm256_add_epi64(_mm256_add_epi64(a_half, b_half), carry)
                 }
                 _ => unreachable!(),
@@ -1344,8 +1420,10 @@ unsafe impl SimdArith for Avx2 {
             } else if T::BYTES == 2 {
                 // u16/i16 -> u32/i32: extract even 16-bit lanes, widen, multiply
                 if is_signed::<T>() {
-                    let a32 = _mm256_srai_epi32(_mm256_slli_epi32(a.raw, 16), 16);
-                    let b32 = _mm256_srai_epi32(_mm256_slli_epi32(b.raw, 16), 16);
+                    let a32 =
+                        _mm256_srai_epi32(_mm256_slli_epi32(a.raw, 16), 16);
+                    let b32 =
+                        _mm256_srai_epi32(_mm256_slli_epi32(b.raw, 16), 16);
                     V256::from_raw(_mm256_mullo_epi32(a32, b32))
                 } else {
                     let mask = _mm256_set1_epi32(0x0000FFFFu32 as i32);
@@ -1438,20 +1516,12 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    fn sat_widen_mul_pairwise_add(
-        self,
-        a: V256<u8>,
-        b: V256<i8>,
-    ) -> V256<i16> {
+    fn sat_widen_mul_pairwise_add(self, a: V256<u8>, b: V256<i8>) -> V256<i16> {
         V256::from_raw(unsafe { _mm256_maddubs_epi16(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    fn mul_fixed_point_15(
-        self,
-        a: V256<i16>,
-        b: V256<i16>,
-    ) -> V256<i16> {
+    fn mul_fixed_point_15(self, a: V256<i16>, b: V256<i16>) -> V256<i16> {
         V256::from_raw(unsafe { _mm256_mulhrs_epi16(a.raw, b.raw) })
     }
 
@@ -1462,7 +1532,9 @@ unsafe impl SimdArith for Avx2 {
         b: V256<i16>,
         sum: V256<i32>,
     ) -> V256<i32> {
-        V256::from_raw(unsafe { _mm256_add_epi32(sum.raw, _mm256_madd_epi16(a.raw, b.raw)) })
+        V256::from_raw(unsafe {
+            _mm256_add_epi32(sum.raw, _mm256_madd_epi16(a.raw, b.raw))
+        })
     }
 
     #[inline(always)]
@@ -1476,27 +1548,57 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    fn masked_min_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn masked_min_or<T: Lane>(
+        self,
+        no: V256<T>,
+        mask: M256<T>,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         self.if_then_else(mask, self.min(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_max_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn masked_max_or<T: Lane>(
+        self,
+        no: V256<T>,
+        mask: M256<T>,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         self.if_then_else(mask, self.max(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_add_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn masked_add_or<T: Lane>(
+        self,
+        no: V256<T>,
+        mask: M256<T>,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         self.if_then_else(mask, self.add(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_sub_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn masked_sub_or<T: Lane>(
+        self,
+        no: V256<T>,
+        mask: M256<T>,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         self.if_then_else(mask, self.sub(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_mul_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn masked_mul_or<T: Lane>(
+        self,
+        no: V256<T>,
+        mask: M256<T>,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         self.if_then_else(mask, self.mul(a, b), no)
     }
 }
@@ -1534,13 +1636,17 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn shift_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
                 1 => {
                     let shifted = _mm256_sll_epi16(v.raw, count);
-                    let mask = _mm256_set1_epi8((0xFFu8.wrapping_shl(BITS)) as i8);
+                    let mask =
+                        _mm256_set1_epi8((0xFFu8.wrapping_shl(BITS)) as i8);
                     _mm256_and_si256(shifted, mask)
                 }
                 2 => _mm256_sll_epi16(v.raw, count),
@@ -1553,7 +1659,10 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn shift_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1561,15 +1670,21 @@ unsafe impl SimdBitwise for Avx2 {
                     if is_signed::<T>() {
                         let count8 = _mm_cvtsi64_si128(8i64);
                         let count_plus_8 = _mm_cvtsi64_si128((BITS + 8) as i64);
-                        let shifted =
-                            _mm256_sra_epi16(_mm256_sll_epi16(v.raw, count8), count_plus_8);
+                        let shifted = _mm256_sra_epi16(
+                            _mm256_sll_epi16(v.raw, count8),
+                            count_plus_8,
+                        );
                         let mask = _mm256_set1_epi16(0x00FF);
                         let lo = _mm256_and_si256(shifted, mask);
-                        let hi = _mm256_andnot_si256(mask, _mm256_sra_epi16(v.raw, count));
+                        let hi = _mm256_andnot_si256(
+                            mask,
+                            _mm256_sra_epi16(v.raw, count),
+                        );
                         _mm256_or_si256(lo, hi)
                     } else {
                         let shifted = _mm256_srl_epi16(v.raw, count);
-                        let mask = _mm256_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8);
+                        let mask =
+                            _mm256_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8);
                         _mm256_and_si256(shifted, mask)
                     }
                 }
@@ -1598,8 +1713,10 @@ unsafe impl SimdBitwise for Avx2 {
                         let shifted = _mm256_srl_epi64(v.raw, count);
                         // Build a mask of the sign bits that were shifted in
                         let ones = _mm256_set1_epi64x(-1i64);
-                        let sign_mask =
-                            _mm256_sll_epi64(ones, _mm_cvtsi64_si128(64i64 - BITS as i64));
+                        let sign_mask = _mm256_sll_epi64(
+                            ones,
+                            _mm_cvtsi64_si128(64i64 - BITS as i64),
+                        );
                         // Where sign is negative, fill shifted-in positions with 1s
                         let fill = _mm256_and_si256(sign64, sign_mask);
                         _mm256_or_si256(shifted, fill)
@@ -1614,7 +1731,10 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn rotate_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let type_bits = (T::BYTES * 8) as u32;
             let right = BITS % type_bits;
@@ -1666,7 +1786,8 @@ unsafe impl SimdBitwise for Avx2 {
             let raw = match T::BYTES {
                 1 => {
                     let shifted = _mm256_sll_epi16(v.raw, count);
-                    let mask = _mm256_set1_epi8((0xFFu8.wrapping_shl(bits)) as i8);
+                    let mask =
+                        _mm256_set1_epi8((0xFFu8.wrapping_shl(bits)) as i8);
                     _mm256_and_si256(shifted, mask)
                 }
                 2 => _mm256_sll_epi16(v.raw, count),
@@ -1679,7 +1800,11 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shift_right_same<T: IntegerLane>(self, v: V256<T>, bits: u32) -> V256<T> {
+    fn shift_right_same<T: IntegerLane>(
+        self,
+        v: V256<T>,
+        bits: u32,
+    ) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1688,8 +1813,10 @@ unsafe impl SimdBitwise for Avx2 {
                         // Emulate arithmetic shift right for i8
                         let count8 = _mm_cvtsi64_si128(8i64);
                         let count_plus_8 = _mm_cvtsi64_si128((bits + 8) as i64);
-                        let shifted =
-                            _mm256_sra_epi16(_mm256_sll_epi16(v.raw, count8), count_plus_8);
+                        let shifted = _mm256_sra_epi16(
+                            _mm256_sll_epi16(v.raw, count8),
+                            count_plus_8,
+                        );
                         let mask = _mm256_set1_epi16(0x00FF);
                         let lo = _mm256_and_si256(shifted, mask);
                         let hi_shifted = _mm256_sra_epi16(v.raw, count);
@@ -1697,7 +1824,8 @@ unsafe impl SimdBitwise for Avx2 {
                         _mm256_or_si256(lo, hi)
                     } else {
                         let shifted = _mm256_srl_epi16(v.raw, count);
-                        let mask = _mm256_set1_epi8((0xFFu8.wrapping_shr(bits)) as i8);
+                        let mask =
+                            _mm256_set1_epi8((0xFFu8.wrapping_shr(bits)) as i8);
                         _mm256_and_si256(shifted, mask)
                     }
                 }
@@ -1721,8 +1849,10 @@ unsafe impl SimdBitwise for Avx2 {
                         let sign64 = _mm256_shuffle_epi32(sign, 0xF5);
                         let shifted = _mm256_srl_epi64(v.raw, count);
                         let ones = _mm256_set1_epi64x(-1i64);
-                        let sign_mask =
-                            _mm256_sll_epi64(ones, _mm_cvtsi64_si128(64i64 - bits as i64));
+                        let sign_mask = _mm256_sll_epi64(
+                            ones,
+                            _mm_cvtsi64_si128(64i64 - bits as i64),
+                        );
                         let fill = _mm256_and_si256(sign64, sign_mask);
                         _mm256_or_si256(shifted, fill)
                     } else {
@@ -1736,7 +1866,10 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V256<T>) -> V256<T> {
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let raw = match BYTES {
                 0 => v.raw,
@@ -1762,7 +1895,10 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V256<T>) -> V256<T> {
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let raw = match BYTES {
                 0 => v.raw,
@@ -1792,8 +1928,8 @@ unsafe impl SimdBitwise for Avx2 {
         unsafe {
             // Nibble-lookup popcount: count set bits per byte, then accumulate
             let nibble_lut = _mm256_setr_epi8(
-                0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3,
-                2, 3, 3, 4,
+                0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 0, 1, 1, 2, 1,
+                2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
             );
             let lo_mask = _mm256_set1_epi8(0x0F);
             let lo = _mm256_and_si256(v.raw, lo_mask);
@@ -1837,17 +1973,19 @@ unsafe impl SimdBitwise for Avx2 {
                     // Nibble-lookup for CLZ of high nibble, then adjust for low nibble.
                     // clz4[nibble] gives the leading zero count of a 4-bit value.
                     let clz4 = _mm256_setr_epi8(
-                        4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 4, 3, 2, 2, 1, 1, 1, 1, 0,
-                        0, 0, 0, 0, 0, 0, 0,
+                        4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 4, 3,
+                        2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
                     );
                     let lo_mask = _mm256_set1_epi8(0x0F);
                     let lo = _mm256_and_si256(v.raw, lo_mask);
-                    let hi = _mm256_and_si256(_mm256_srli_epi16(v.raw, 4), lo_mask);
+                    let hi =
+                        _mm256_and_si256(_mm256_srli_epi16(v.raw, 4), lo_mask);
                     let clz_lo = _mm256_shuffle_epi8(clz4, lo);
                     let clz_hi = _mm256_shuffle_epi8(clz4, hi);
                     // If high nibble is nonzero, clz = clz_hi; else clz = 4 + clz_lo
                     // clz_hi < 4 means high nibble was nonzero
-                    let hi_nonzero = _mm256_cmpgt_epi8(_mm256_set1_epi8(4), clz_hi);
+                    let hi_nonzero =
+                        _mm256_cmpgt_epi8(_mm256_set1_epi8(4), clz_hi);
                     // Where hi_nonzero: use clz_hi; else: 4 + clz_lo
                     let clz_full = _mm256_add_epi8(clz_lo, _mm256_set1_epi8(4));
                     V256::from_raw(_mm256_or_si256(
@@ -1859,16 +1997,18 @@ unsafe impl SimdBitwise for Avx2 {
                     // CLZ for 16-bit lanes: compute CLZ for each byte, then combine.
                     // clz(u16) = if hi_byte != 0 { clz(hi_byte) } else { 8 + clz(lo_byte) }
                     let clz4 = _mm256_setr_epi8(
-                        4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 4, 3, 2, 2, 1, 1, 1, 1, 0,
-                        0, 0, 0, 0, 0, 0, 0,
+                        4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 4, 3,
+                        2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
                     );
                     let lo_mask = _mm256_set1_epi8(0x0F);
                     let lo_nib = _mm256_and_si256(v.raw, lo_mask);
-                    let hi_nib = _mm256_and_si256(_mm256_srli_epi16(v.raw, 4), lo_mask);
+                    let hi_nib =
+                        _mm256_and_si256(_mm256_srli_epi16(v.raw, 4), lo_mask);
                     let clz_lo_nib = _mm256_shuffle_epi8(clz4, lo_nib);
                     let clz_hi_nib = _mm256_shuffle_epi8(clz4, hi_nib);
                     // Per-byte CLZ
-                    let hi_nz = _mm256_cmpgt_epi8(_mm256_set1_epi8(4), clz_hi_nib);
+                    let hi_nz =
+                        _mm256_cmpgt_epi8(_mm256_set1_epi8(4), clz_hi_nib);
                     let byte_clz = _mm256_or_si256(
                         _mm256_and_si256(hi_nz, clz_hi_nib),
                         _mm256_andnot_si256(
@@ -1882,10 +2022,13 @@ unsafe impl SimdBitwise for Avx2 {
                     // else 8 + byte_clz of low byte.
                     // Shift byte_clz right by 8 bits to get high byte's clz in even positions
                     let hi_byte_clz = _mm256_srli_epi16(byte_clz, 8);
-                    let lo_byte_clz = _mm256_and_si256(byte_clz, _mm256_set1_epi16(0x00FF));
+                    let lo_byte_clz =
+                        _mm256_and_si256(byte_clz, _mm256_set1_epi16(0x00FF));
                     // high byte is nonzero if hi_byte_clz < 8
-                    let hi_byte_nz = _mm256_cmpgt_epi16(_mm256_set1_epi16(8), hi_byte_clz);
-                    let full_clz = _mm256_add_epi16(lo_byte_clz, _mm256_set1_epi16(8));
+                    let hi_byte_nz =
+                        _mm256_cmpgt_epi16(_mm256_set1_epi16(8), hi_byte_clz);
+                    let full_clz =
+                        _mm256_add_epi16(lo_byte_clz, _mm256_set1_epi16(8));
                     V256::from_raw(_mm256_or_si256(
                         _mm256_and_si256(hi_byte_nz, hi_byte_clz),
                         _mm256_andnot_si256(hi_byte_nz, full_clz),
@@ -1906,8 +2049,12 @@ unsafe impl SimdBitwise for Avx2 {
                     let v_no_msb = _mm256_andnot_si256(msb_mask, v.raw);
                     // Normalize: clear bit at (MSB_pos - 24) to ensure float conversion
                     // rounds down for values >= 2^24 (matching C++ NormalizeForUIntTruncConvToF32).
-                    let v_normalized = _mm256_andnot_si256(_mm256_srli_epi32(v_no_msb, 24), v_no_msb);
-                    let v_or_1 = _mm256_or_si256(v_normalized, _mm256_set1_epi32(1));
+                    let v_normalized = _mm256_andnot_si256(
+                        _mm256_srli_epi32(v_no_msb, 24),
+                        v_no_msb,
+                    );
+                    let v_or_1 =
+                        _mm256_or_si256(v_normalized, _mm256_set1_epi32(1));
                     let as_float = _mm256_cvtepi32_ps(v_or_1);
                     let float_bits = _mm256_castps_si256(as_float);
                     let exponent = _mm256_and_si256(
@@ -1923,9 +2070,11 @@ unsafe impl SimdBitwise for Avx2 {
                     //   v = 0x40000000: float = 2^30, exp = 127+30 = 157, clz = 158-157 = 1. Correct.
                     //   v = 1: float = 1.0, exp = 127, clz = 158-127 = 31. Correct.
                     //   v = 0: v|1 = 1, float = 1.0, exp = 127, clz = 31. Wrong (should be 32).
-                    let clz_no_msb = _mm256_sub_epi32(_mm256_set1_epi32(158), exponent);
+                    let clz_no_msb =
+                        _mm256_sub_epi32(_mm256_set1_epi32(158), exponent);
                     // Fix v == 0 case
-                    let is_zero = _mm256_cmpeq_epi32(v.raw, _mm256_setzero_si256());
+                    let is_zero =
+                        _mm256_cmpeq_epi32(v.raw, _mm256_setzero_si256());
                     // MSB set -> clz = 0; v == 0 -> clz = 32; else -> clz_no_msb
                     let result = _mm256_or_si256(
                         _mm256_and_si256(is_zero, _mm256_set1_epi32(32)),
@@ -1939,7 +2088,8 @@ unsafe impl SimdBitwise for Avx2 {
                     // compute CLZ-32 for each, then combine.
                     // clz(u64) = if hi32 != 0 { clz32(hi32) } else { 32 + clz32(lo32) }
                     let hi32 = _mm256_srli_epi64(v.raw, 32);
-                    let lo32 = _mm256_and_si256(v.raw, _mm256_set1_epi64x(0xFFFFFFFF));
+                    let lo32 =
+                        _mm256_and_si256(v.raw, _mm256_set1_epi64x(0xFFFFFFFF));
 
                     // Helper: CLZ-32 with MSB-safe float trick.
                     // Clear bit 31, compute CLZ on remaining 31 bits, handle MSB.
@@ -1949,10 +2099,17 @@ unsafe impl SimdBitwise for Avx2 {
                     let zero = _mm256_setzero_si256();
 
                     // CLZ of hi32
-                    let hi_has_msb = _mm256_cmpeq_epi32(_mm256_and_si256(hi32, msb32), msb32);
+                    let hi_has_msb = _mm256_cmpeq_epi32(
+                        _mm256_and_si256(hi32, msb32),
+                        msb32,
+                    );
                     let hi_no_msb = _mm256_andnot_si256(msb32, hi32);
-                    let hi_norm = _mm256_andnot_si256(_mm256_srli_epi32(hi_no_msb, 24), hi_no_msb);
-                    let hi_f = _mm256_cvtepi32_ps(_mm256_or_si256(hi_norm, one32));
+                    let hi_norm = _mm256_andnot_si256(
+                        _mm256_srli_epi32(hi_no_msb, 24),
+                        hi_no_msb,
+                    );
+                    let hi_f =
+                        _mm256_cvtepi32_ps(_mm256_or_si256(hi_norm, one32));
                     let hi_exp = _mm256_and_si256(
                         _mm256_srli_epi32(_mm256_castps_si256(hi_f), 23),
                         _mm256_set1_epi32(0xFF),
@@ -1968,10 +2125,17 @@ unsafe impl SimdBitwise for Avx2 {
                     );
 
                     // CLZ of lo32
-                    let lo_has_msb = _mm256_cmpeq_epi32(_mm256_and_si256(lo32, msb32), msb32);
+                    let lo_has_msb = _mm256_cmpeq_epi32(
+                        _mm256_and_si256(lo32, msb32),
+                        msb32,
+                    );
                     let lo_no_msb = _mm256_andnot_si256(msb32, lo32);
-                    let lo_norm = _mm256_andnot_si256(_mm256_srli_epi32(lo_no_msb, 24), lo_no_msb);
-                    let lo_f = _mm256_cvtepi32_ps(_mm256_or_si256(lo_norm, one32));
+                    let lo_norm = _mm256_andnot_si256(
+                        _mm256_srli_epi32(lo_no_msb, 24),
+                        lo_no_msb,
+                    );
+                    let lo_f =
+                        _mm256_cvtepi32_ps(_mm256_or_si256(lo_norm, one32));
                     let lo_exp = _mm256_and_si256(
                         _mm256_srli_epi32(_mm256_castps_si256(lo_f), 23),
                         _mm256_set1_epi32(0xFF),
@@ -1988,9 +2152,16 @@ unsafe impl SimdBitwise for Avx2 {
 
                     // Combine: if hi32 != 0: clz64 = hi_clz; else: clz64 = 32 + lo_clz
                     let hi_zero_64 = _mm256_cmpeq_epi64(hi32, zero);
-                    let lo_clz_64 = _mm256_and_si256(lo_clz, _mm256_set1_epi64x(0xFFFFFFFF));
-                    let hi_clz_64 = _mm256_and_si256(hi_clz, _mm256_set1_epi64x(0xFFFFFFFF));
-                    let lo_plus_32 = _mm256_add_epi64(lo_clz_64, _mm256_set1_epi64x(32));
+                    let lo_clz_64 = _mm256_and_si256(
+                        lo_clz,
+                        _mm256_set1_epi64x(0xFFFFFFFF),
+                    );
+                    let hi_clz_64 = _mm256_and_si256(
+                        hi_clz,
+                        _mm256_set1_epi64x(0xFFFFFFFF),
+                    );
+                    let lo_plus_32 =
+                        _mm256_add_epi64(lo_clz_64, _mm256_set1_epi64x(32));
                     V256::from_raw(_mm256_or_si256(
                         _mm256_and_si256(hi_zero_64, lo_plus_32),
                         _mm256_andnot_si256(hi_zero_64, hi_clz_64),
@@ -2035,24 +2206,24 @@ unsafe impl SimdBitwise for Avx2 {
                 2 => {
                     // Swap bytes within each 16-bit lane: use shuffle_epi8
                     let idx = _mm256_set_epi8(
-                        14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1, 14, 15, 12, 13, 10,
-                        11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1,
+                        14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1,
+                        14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
                 4 => {
                     // Reverse 4 bytes within each 32-bit lane
                     let idx = _mm256_set_epi8(
-                        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9,
-                        10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+                        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+                        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
                 8 => {
                     // Reverse 8 bytes within each 64-bit lane
                     let idx = _mm256_set_epi8(
-                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-                        14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
+                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
+                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
@@ -2067,8 +2238,9 @@ unsafe impl SimdBitwise for Avx2 {
         unsafe {
             // Nibble-lookup to reverse bits within each nibble
             let nibble_rev = _mm256_setr_epi8(
-                0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD, 0x3, 0xB, 0x7, 0xF,
-                0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD, 0x3, 0xB, 0x7, 0xF,
+                0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD,
+                0x3, 0xB, 0x7, 0xF, 0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE,
+                0x1, 0x9, 0x5, 0xD, 0x3, 0xB, 0x7, 0xF,
             );
             let lo_mask = _mm256_set1_epi8(0x0F);
             let hi_mask = _mm256_set1_epi8(0xF0u8 as i8);
@@ -2094,11 +2266,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shl<T: IntegerLane>(
-        self,
-        v: V256<T>,
-        bits: V256<T>,
-    ) -> V256<T> {
+    fn shl<T: IntegerLane>(self, v: V256<T>, bits: V256<T>) -> V256<T> {
         unsafe {
             if is_type::<T, u32>() || is_type::<T, i32>() {
                 V256::from_raw(_mm256_sllv_epi32(v.raw, bits.raw))
@@ -2107,9 +2275,13 @@ unsafe impl SimdBitwise for Avx2 {
             } else if T::BYTES == 2 {
                 // u16/i16: promote to 32-bit, shift, demote
                 let lo_v = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(v.raw));
-                let hi_v = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(v.raw, 1));
-                let lo_b = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(bits.raw));
-                let hi_b = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(bits.raw, 1));
+                let hi_v =
+                    _mm256_cvtepu16_epi32(_mm256_extracti128_si256(v.raw, 1));
+                let lo_b =
+                    _mm256_cvtepu16_epi32(_mm256_castsi256_si128(bits.raw));
+                let hi_b = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(
+                    bits.raw, 1,
+                ));
                 let lo_r = _mm256_sllv_epi32(lo_v, lo_b);
                 let hi_r = _mm256_sllv_epi32(hi_v, hi_b);
                 // Pack back: mask to 16 bits, then pack
@@ -2127,7 +2299,11 @@ unsafe impl SimdBitwise for Avx2 {
                 _mm256_store_si256(b_arr.as_mut_ptr().cast(), bits.raw);
                 for i in 0..32 {
                     let shift = b_arr.value[i];
-                    v_arr.value[i] = if shift >= 8 { 0 } else { v_arr.value[i] << shift };
+                    v_arr.value[i] = if shift >= 8 {
+                        0
+                    } else {
+                        v_arr.value[i] << shift
+                    };
                 }
                 V256::from_raw(_mm256_load_si256(v_arr.as_ptr().cast()))
             }
@@ -2135,11 +2311,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn shr<T: IntegerLane>(
-        self,
-        v: V256<T>,
-        bits: V256<T>,
-    ) -> V256<T> {
+    fn shr<T: IntegerLane>(self, v: V256<T>, bits: V256<T>) -> V256<T> {
         unsafe {
             if is_type::<T, u32>() {
                 V256::from_raw(_mm256_srlv_epi32(v.raw, bits.raw))
@@ -2160,13 +2332,20 @@ unsafe impl SimdBitwise for Avx2 {
             } else if T::BYTES == 2 {
                 // u16/i16: promote to 32-bit, shift, pack back
                 let lo_v = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(v.raw));
-                let hi_v = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(v.raw, 1));
-                let lo_b = _mm256_cvtepu16_epi32(_mm256_castsi256_si128(bits.raw));
-                let hi_b = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(bits.raw, 1));
+                let hi_v =
+                    _mm256_cvtepu16_epi32(_mm256_extracti128_si256(v.raw, 1));
+                let lo_b =
+                    _mm256_cvtepu16_epi32(_mm256_castsi256_si128(bits.raw));
+                let hi_b = _mm256_cvtepu16_epi32(_mm256_extracti128_si256(
+                    bits.raw, 1,
+                ));
                 if is_signed::<T>() {
                     // Sign-extend u16 to i32 for arithmetic shift
-                    let lo_vs = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(v.raw));
-                    let hi_vs = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(v.raw, 1));
+                    let lo_vs =
+                        _mm256_cvtepi16_epi32(_mm256_castsi256_si128(v.raw));
+                    let hi_vs = _mm256_cvtepi16_epi32(
+                        _mm256_extracti128_si256(v.raw, 1),
+                    );
                     let lo_r = _mm256_srav_epi32(lo_vs, lo_b);
                     let hi_r = _mm256_srav_epi32(hi_vs, hi_b);
                     // Pack with signed saturation then fix order
@@ -2184,8 +2363,10 @@ unsafe impl SimdBitwise for Avx2 {
             } else {
                 // u8/i8: scalar fallback
                 if is_signed::<T>() {
-                    let mut v_arr: Aligned<A32, [i8; 32]> = Aligned::new([0i8; 32]);
-                    let mut b_arr: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                    let mut v_arr: Aligned<A32, [i8; 32]> =
+                        Aligned::new([0i8; 32]);
+                    let mut b_arr: Aligned<A32, [u8; 32]> =
+                        Aligned::new([0u8; 32]);
                     _mm256_store_si256(v_arr.as_mut_ptr().cast(), v.raw);
                     _mm256_store_si256(b_arr.as_mut_ptr().cast(), bits.raw);
                     for i in 0..32 {
@@ -2198,13 +2379,19 @@ unsafe impl SimdBitwise for Avx2 {
                     }
                     V256::from_raw(_mm256_load_si256(v_arr.as_ptr().cast()))
                 } else {
-                    let mut v_arr: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
-                    let mut b_arr: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                    let mut v_arr: Aligned<A32, [u8; 32]> =
+                        Aligned::new([0u8; 32]);
+                    let mut b_arr: Aligned<A32, [u8; 32]> =
+                        Aligned::new([0u8; 32]);
                     _mm256_store_si256(v_arr.as_mut_ptr().cast(), v.raw);
                     _mm256_store_si256(b_arr.as_mut_ptr().cast(), bits.raw);
                     for i in 0..32 {
                         let shift = b_arr.value[i];
-                        v_arr.value[i] = if shift >= 8 { 0 } else { v_arr.value[i] >> shift };
+                        v_arr.value[i] = if shift >= 8 {
+                            0
+                        } else {
+                            v_arr.value[i] >> shift
+                        };
                     }
                     V256::from_raw(_mm256_load_si256(v_arr.as_ptr().cast()))
                 }
@@ -2231,23 +2418,57 @@ unsafe impl SimdBitwise for Avx2 {
                         result[offset] = va.rotate_right(vb as u32);
                     }
                     2 => {
-                        let va = u16::from_le_bytes([arr_a[offset], arr_a[offset + 1]]);
-                        let vb = u16::from_le_bytes([arr_b[offset], arr_b[offset + 1]]) & 15;
+                        let va = u16::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                        ]);
+                        let vb = u16::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                        ]) & 15;
                         let rb = va.rotate_right(vb as u32).to_le_bytes();
                         result[offset] = rb[0];
                         result[offset + 1] = rb[1];
                     }
                     4 => {
-                        let va = u32::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3]]);
-                        let vb = u32::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3]]) & 31;
+                        let va = u32::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                        ]);
+                        let vb = u32::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                        ]) & 31;
                         let rb = va.rotate_right(vb).to_le_bytes();
-                        result[offset..offset+4].copy_from_slice(&rb);
+                        result[offset..offset + 4].copy_from_slice(&rb);
                     }
                     8 => {
-                        let va = u64::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3], arr_a[offset+4], arr_a[offset+5], arr_a[offset+6], arr_a[offset+7]]);
-                        let vb = u64::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3], arr_b[offset+4], arr_b[offset+5], arr_b[offset+6], arr_b[offset+7]]) & 63;
+                        let va = u64::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                            arr_a[offset + 4],
+                            arr_a[offset + 5],
+                            arr_a[offset + 6],
+                            arr_a[offset + 7],
+                        ]);
+                        let vb = u64::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                            arr_b[offset + 4],
+                            arr_b[offset + 5],
+                            arr_b[offset + 6],
+                            arr_b[offset + 7],
+                        ]) & 63;
                         let rb = va.rotate_right(vb as u32).to_le_bytes();
-                        result[offset..offset+8].copy_from_slice(&rb);
+                        result[offset..offset + 8].copy_from_slice(&rb);
                     }
                     _ => unreachable!(),
                 }
@@ -2274,21 +2495,58 @@ unsafe impl SimdBitwise for Avx2 {
                         result[offset] = va.rotate_left(vb as u32);
                     }
                     2 => {
-                        let va = u16::from_le_bytes([arr_a[offset], arr_a[offset + 1]]);
-                        let vb = u16::from_le_bytes([arr_b[offset], arr_b[offset + 1]]) & 15;
+                        let va = u16::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                        ]);
+                        let vb = u16::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                        ]) & 15;
                         let rb = va.rotate_left(vb as u32).to_le_bytes();
                         result[offset] = rb[0];
                         result[offset + 1] = rb[1];
                     }
                     4 => {
-                        let va = u32::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3]]);
-                        let vb = u32::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3]]) & 31;
-                        result[offset..offset+4].copy_from_slice(&va.rotate_left(vb).to_le_bytes());
+                        let va = u32::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                        ]);
+                        let vb = u32::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                        ]) & 31;
+                        result[offset..offset + 4]
+                            .copy_from_slice(&va.rotate_left(vb).to_le_bytes());
                     }
                     8 => {
-                        let va = u64::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3], arr_a[offset+4], arr_a[offset+5], arr_a[offset+6], arr_a[offset+7]]);
-                        let vb = u64::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3], arr_b[offset+4], arr_b[offset+5], arr_b[offset+6], arr_b[offset+7]]) & 63;
-                        result[offset..offset+8].copy_from_slice(&va.rotate_left(vb as u32).to_le_bytes());
+                        let va = u64::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                            arr_a[offset + 4],
+                            arr_a[offset + 5],
+                            arr_a[offset + 6],
+                            arr_a[offset + 7],
+                        ]);
+                        let vb = u64::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                            arr_b[offset + 4],
+                            arr_b[offset + 5],
+                            arr_b[offset + 6],
+                            arr_b[offset + 7],
+                        ]) & 63;
+                        result[offset..offset + 8].copy_from_slice(
+                            &va.rotate_left(vb as u32).to_le_bytes(),
+                        );
                     }
                     _ => unreachable!(),
                 }
@@ -2298,7 +2556,10 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn rotate_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut result = [0u8; 32];
@@ -2309,18 +2570,37 @@ unsafe impl SimdBitwise for Avx2 {
                 match T::BYTES {
                     1 => result[offset] = arr[offset].rotate_left(BITS),
                     2 => {
-                        let va = u16::from_le_bytes([arr[offset], arr[offset + 1]]);
+                        let va =
+                            u16::from_le_bytes([arr[offset], arr[offset + 1]]);
                         let rb = va.rotate_left(BITS).to_le_bytes();
                         result[offset] = rb[0];
                         result[offset + 1] = rb[1];
                     }
                     4 => {
-                        let va = u32::from_le_bytes([arr[offset], arr[offset+1], arr[offset+2], arr[offset+3]]);
-                        result[offset..offset+4].copy_from_slice(&va.rotate_left(BITS).to_le_bytes());
+                        let va = u32::from_le_bytes([
+                            arr[offset],
+                            arr[offset + 1],
+                            arr[offset + 2],
+                            arr[offset + 3],
+                        ]);
+                        result[offset..offset + 4].copy_from_slice(
+                            &va.rotate_left(BITS).to_le_bytes(),
+                        );
                     }
                     8 => {
-                        let va = u64::from_le_bytes([arr[offset], arr[offset+1], arr[offset+2], arr[offset+3], arr[offset+4], arr[offset+5], arr[offset+6], arr[offset+7]]);
-                        result[offset..offset+8].copy_from_slice(&va.rotate_left(BITS).to_le_bytes());
+                        let va = u64::from_le_bytes([
+                            arr[offset],
+                            arr[offset + 1],
+                            arr[offset + 2],
+                            arr[offset + 3],
+                            arr[offset + 4],
+                            arr[offset + 5],
+                            arr[offset + 6],
+                            arr[offset + 7],
+                        ]);
+                        result[offset..offset + 8].copy_from_slice(
+                            &va.rotate_left(BITS).to_le_bytes(),
+                        );
                     }
                     _ => unreachable!(),
                 }
@@ -2540,15 +2820,17 @@ unsafe impl SimdMask for Avx2 {
             match T::BYTES {
                 1 => {
                     let iota = _mm256_setr_epi8(
-                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-                        21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+                        30, 31,
                     );
                     let threshold = _mm256_set1_epi8(n as i8);
                     M256::from_raw(_mm256_cmpgt_epi8(threshold, iota))
                 }
                 2 => {
-                    let iota =
-                        _mm256_setr_epi16(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+                    let iota = _mm256_setr_epi16(
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                    );
                     let threshold = _mm256_set1_epi16(n as i16);
                     M256::from_raw(_mm256_cmpgt_epi16(threshold, iota))
                 }
@@ -2573,8 +2855,14 @@ unsafe impl SimdMask for Avx2 {
             match T::BYTES {
                 1 => _mm256_movemask_epi8(m.raw).count_ones() as usize,
                 2 => (_mm256_movemask_epi8(m.raw).count_ones() as usize) / 2,
-                4 => _mm256_movemask_ps(_mm256_castsi256_ps(m.raw)).count_ones() as usize,
-                8 => _mm256_movemask_pd(_mm256_castsi256_pd(m.raw)).count_ones() as usize,
+                4 => {
+                    _mm256_movemask_ps(_mm256_castsi256_ps(m.raw)).count_ones()
+                        as usize
+                }
+                8 => {
+                    _mm256_movemask_pd(_mm256_castsi256_pd(m.raw)).count_ones()
+                        as usize
+                }
                 _ => unreachable!(),
             }
         }
@@ -2603,7 +2891,12 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    fn if_then_else<T: Lane>(self, mask: M256<T>, yes: V256<T>, no: V256<T>) -> V256<T> {
+    fn if_then_else<T: Lane>(
+        self,
+        mask: M256<T>,
+        yes: V256<T>,
+        no: V256<T>,
+    ) -> V256<T> {
         unsafe {
             V256::from_raw(_mm256_or_si256(
                 _mm256_and_si256(mask.raw, yes.raw),
@@ -2613,7 +2906,11 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    fn if_then_else_zero<T: Lane>(self, mask: M256<T>, yes: V256<T>) -> V256<T> {
+    fn if_then_else_zero<T: Lane>(
+        self,
+        mask: M256<T>,
+        yes: V256<T>,
+    ) -> V256<T> {
         V256::from_raw(unsafe { _mm256_and_si256(mask.raw, yes.raw) })
     }
 
@@ -2671,8 +2968,12 @@ unsafe impl SimdMask for Avx2 {
                     let x = (x | (x >> 4)) & 0x00FF00FF;
                     (x | (x >> 8)) & 0x0000FFFF
                 }
-                4 => _mm256_movemask_ps(_mm256_castsi256_ps(m.raw)) as u32 as u64,
-                8 => _mm256_movemask_pd(_mm256_castsi256_pd(m.raw)) as u32 as u64,
+                4 => {
+                    _mm256_movemask_ps(_mm256_castsi256_ps(m.raw)) as u32 as u64
+                }
+                8 => {
+                    _mm256_movemask_pd(_mm256_castsi256_pd(m.raw)) as u32 as u64
+                }
                 _ => unreachable!(),
             }
         }
@@ -2682,7 +2983,10 @@ unsafe impl SimdMask for Avx2 {
     fn exclusive_neither<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
         // NOR: true only where neither a nor b is set (C++ ExclusiveNeither).
         unsafe {
-            let ones = _mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_setzero_si256());
+            let ones = _mm256_cmpeq_epi8(
+                _mm256_setzero_si256(),
+                _mm256_setzero_si256(),
+            );
             let not_b = _mm256_xor_si256(b.raw, ones);
             M256::from_raw(_mm256_andnot_si256(a.raw, not_b))
         }
@@ -2707,16 +3011,28 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    fn if_negative_then_else<T: Lane>(self, v: V256<T>, yes: V256<T>, no: V256<T>) -> V256<T> {
+    fn if_negative_then_else<T: Lane>(
+        self,
+        v: V256<T>,
+        yes: V256<T>,
+        no: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let sign = avx2_sign_mask::<T>(v.raw);
-            let r = _mm256_or_si256(_mm256_and_si256(sign, yes.raw), _mm256_andnot_si256(sign, no.raw));
+            let r = _mm256_or_si256(
+                _mm256_and_si256(sign, yes.raw),
+                _mm256_andnot_si256(sign, no.raw),
+            );
             V256::from_raw(r)
         }
     }
 
     #[inline(always)]
-    fn if_negative_then_else_zero<T: Lane>(self, v: V256<T>, yes: V256<T>) -> V256<T> {
+    fn if_negative_then_else_zero<T: Lane>(
+        self,
+        v: V256<T>,
+        yes: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let sign = avx2_sign_mask::<T>(v.raw);
             V256::from_raw(_mm256_and_si256(sign, yes.raw))
@@ -2724,7 +3040,11 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    fn if_negative_then_zero_else<T: Lane>(self, v: V256<T>, no: V256<T>) -> V256<T> {
+    fn if_negative_then_zero_else<T: Lane>(
+        self,
+        v: V256<T>,
+        no: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let sign = avx2_sign_mask::<T>(v.raw);
             V256::from_raw(_mm256_andnot_si256(sign, no.raw))
@@ -2779,7 +3099,9 @@ unsafe impl SimdConvert for Avx2 {
                 4 => {
                     if is_type::<N, f32>() {
                         let lo = _mm256_castsi256_si128(v.raw);
-                        _mm256_castpd_si256(_mm256_cvtps_pd(_mm_castsi128_ps(lo)))
+                        _mm256_castpd_si256(_mm256_cvtps_pd(_mm_castsi128_ps(
+                            lo,
+                        )))
                     } else if is_signed::<N>() {
                         _mm256_cvtepi32_epi64(_mm256_castsi256_si128(v.raw))
                     } else {
@@ -2842,11 +3164,17 @@ unsafe impl SimdConvert for Avx2 {
                     } else {
                         // 64 -> 32 bit saturating via SIMD clamp + shuffle pack
                         let clamped = if is_signed::<W>() {
-                            let min_val = V256::<W>::from_raw(_mm256_set1_epi64x(i32::MIN as i64));
-                            let max_val = V256::<W>::from_raw(_mm256_set1_epi64x(i32::MAX as i64));
+                            let min_val = V256::<W>::from_raw(
+                                _mm256_set1_epi64x(i32::MIN as i64),
+                            );
+                            let max_val = V256::<W>::from_raw(
+                                _mm256_set1_epi64x(i32::MAX as i64),
+                            );
                             self.min(self.max(v, min_val), max_val)
                         } else {
-                            let max_val = V256::<W>::from_raw(_mm256_set1_epi64x(u32::MAX as i64));
+                            let max_val = V256::<W>::from_raw(
+                                _mm256_set1_epi64x(u32::MAX as i64),
+                            );
                             self.min(v, max_val)
                         };
                         // Shuffle within each 128-bit lane: [lo0, lo1, ?, ?] per lane
@@ -2881,9 +3209,11 @@ unsafe impl SimdConvert for Avx2 {
                 let lo = _mm256_castsi256_si128(v.raw);
                 let hi = _mm256_extracti128_si256(v.raw, 1);
                 let i0 = _mm_cvttsd_si64(_mm_castsi128_pd(lo));
-                let i1 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(lo, 8)));
+                let i1 =
+                    _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(lo, 8)));
                 let i2 = _mm_cvttsd_si64(_mm_castsi128_pd(hi));
-                let i3 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(hi, 8)));
+                let i3 =
+                    _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(hi, 8)));
                 let lo_r = _mm_set_epi64x(i1, i0);
                 let hi_r = _mm_set_epi64x(i3, i2);
                 let converted = _mm256_set_m128i(hi_r, lo_r);
@@ -2907,8 +3237,13 @@ unsafe impl SimdConvert for Avx2 {
                 // i64 -> f64: Wim trick
                 let k84_63 = _mm256_set1_epi64x(0x4530000080000000u64 as i64);
                 let v_upper = _mm256_castpd_si256(_mm256_sub_pd(
-                    _mm256_castsi256_pd(_mm256_xor_si256(_mm256_srli_epi64(v.raw, 32), k84_63)),
-                    _mm256_castsi256_pd(_mm256_set1_epi64x(0x4530000080100000u64 as i64)),
+                    _mm256_castsi256_pd(_mm256_xor_si256(
+                        _mm256_srli_epi64(v.raw, 32),
+                        k84_63,
+                    )),
+                    _mm256_castsi256_pd(_mm256_set1_epi64x(
+                        0x4530000080100000u64 as i64,
+                    )),
                 ));
                 let k52 = _mm256_set1_epi64x(0x4330000000000000u64 as i64);
                 // OddEven for u32 on AVX2: blend_epi32 with mask 0xAA (odd positions from k52)
@@ -2936,8 +3271,9 @@ unsafe impl SimdConvert for Avx2 {
                     let mask = _mm256_set1_epi16(0x00FF);
                     let masked = _mm256_and_si256(v.raw, mask);
                     let shuf = _mm256_set_epi8(
-                        -1, -1, -1, -1, -1, -1, -1, -1, 14, 12, 10, 8, 6, 4, 2, 0,
-                        -1, -1, -1, -1, -1, -1, -1, -1, 14, 12, 10, 8, 6, 4, 2, 0,
+                        -1, -1, -1, -1, -1, -1, -1, -1, 14, 12, 10, 8, 6, 4, 2,
+                        0, -1, -1, -1, -1, -1, -1, -1, -1, 14, 12, 10, 8, 6, 4,
+                        2, 0,
                     );
                     let shuffled = _mm256_shuffle_epi8(masked, shuf);
                     // Each 128-bit lane has 8 bytes in low half; combine with permute
@@ -2948,8 +3284,9 @@ unsafe impl SimdConvert for Avx2 {
                     let mask = _mm256_set1_epi32(0x0000FFFF);
                     let masked = _mm256_and_si256(v.raw, mask);
                     let shuf = _mm256_set_epi8(
-                        -1, -1, -1, -1, -1, -1, -1, -1, 13, 12, 9, 8, 5, 4, 1, 0,
-                        -1, -1, -1, -1, -1, -1, -1, -1, 13, 12, 9, 8, 5, 4, 1, 0,
+                        -1, -1, -1, -1, -1, -1, -1, -1, 13, 12, 9, 8, 5, 4, 1,
+                        0, -1, -1, -1, -1, -1, -1, -1, -1, 13, 12, 9, 8, 5, 4,
+                        1, 0,
                     );
                     let shuffled = _mm256_shuffle_epi8(masked, shuf);
                     _mm256_permute4x64_epi64(shuffled, 0x08)
@@ -2990,7 +3327,8 @@ unsafe impl SimdConvert for Avx2 {
                         let max_i32 = _mm256_set1_epi32(0x7FFFFFFFu32 as i32);
                         let lo_clamped = _mm256_min_epu32(lo.raw, max_i32);
                         let hi_clamped = _mm256_min_epu32(hi.raw, max_i32);
-                        let packed = _mm256_packus_epi32(lo_clamped, hi_clamped);
+                        let packed =
+                            _mm256_packus_epi32(lo_clamped, hi_clamped);
                         _mm256_permute4x64_epi64(packed, 0xD8)
                     }
                 }
@@ -3000,7 +3338,8 @@ unsafe impl SimdConvert for Avx2 {
                         let max_i16 = _mm256_set1_epi16(0x7FFFu16 as i16);
                         let lo_clamped = _mm256_min_epu16(lo.raw, max_i16);
                         let hi_clamped = _mm256_min_epu16(hi.raw, max_i16);
-                        let packed = _mm256_packus_epi16(lo_clamped, hi_clamped);
+                        let packed =
+                            _mm256_packus_epi16(lo_clamped, hi_clamped);
                         _mm256_permute4x64_epi64(packed, 0xD8)
                     } else {
                         // i16 -> i8
@@ -3015,16 +3354,26 @@ unsafe impl SimdConvert for Avx2 {
                     let mut hi_arr = [0i64; 4];
                     _mm256_storeu_si256(lo_arr.as_mut_ptr().cast(), lo.raw);
                     _mm256_storeu_si256(hi_arr.as_mut_ptr().cast(), hi.raw);
-                    let mut result: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
-                    let result_u32: &mut [u32; 8] = core::mem::transmute(&mut *result);
+                    let mut result: Aligned<A32, [u8; 32]> =
+                        Aligned::new([0u8; 32]);
+                    let result_u32: &mut [u32; 8] =
+                        core::mem::transmute(&mut *result);
                     if is_type::<W, u64>() {
                         for i in 0..lanes {
                             let v = lo_arr[i] as u64;
-                            result_u32[i] = if v > u32::MAX as u64 { u32::MAX } else { v as u32 };
+                            result_u32[i] = if v > u32::MAX as u64 {
+                                u32::MAX
+                            } else {
+                                v as u32
+                            };
                         }
                         for i in 0..lanes {
                             let v = hi_arr[i] as u64;
-                            result_u32[lanes + i] = if v > u32::MAX as u64 { u32::MAX } else { v as u32 };
+                            result_u32[lanes + i] = if v > u32::MAX as u64 {
+                                u32::MAX
+                            } else {
+                                v as u32
+                            };
                         }
                     } else {
                         // i64 -> i32
@@ -3085,13 +3434,19 @@ unsafe impl SimdConvert for Avx2 {
                     _CMP_GE_OQ,
                 ));
                 // Round to nearest-even, then truncate-convert.
-                let rounded = _mm256_round_pd(v_pd, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+                let rounded = _mm256_round_pd(
+                    v_pd,
+                    _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC,
+                );
                 let lo = _mm256_castsi256_si128(_mm256_castpd_si256(rounded));
-                let hi = _mm256_extracti128_si256(_mm256_castpd_si256(rounded), 1);
+                let hi =
+                    _mm256_extracti128_si256(_mm256_castpd_si256(rounded), 1);
                 let i0 = _mm_cvttsd_si64(_mm_castsi128_pd(lo));
-                let i1 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(lo, 8)));
+                let i1 =
+                    _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(lo, 8)));
                 let i2 = _mm_cvttsd_si64(_mm_castsi128_pd(hi));
-                let i3 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(hi, 8)));
+                let i3 =
+                    _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(hi, 8)));
                 let lo_r = _mm_set_epi64x(i1, i0);
                 let hi_r = _mm_set_epi64x(i3, i2);
                 let converted = _mm256_set_m128i(hi_r, lo_r);
@@ -3164,25 +3519,29 @@ unsafe impl SimdConvert for Avx2 {
             // Lower 128 bits of a
             for i in 0..(16 / W::BYTES) {
                 let off = i * W::BYTES;
-                result[dst..dst+narrow_bytes].copy_from_slice(&arr_a[off..off+narrow_bytes]);
+                result[dst..dst + narrow_bytes]
+                    .copy_from_slice(&arr_a[off..off + narrow_bytes]);
                 dst += narrow_bytes;
             }
             // Lower 128 bits of b
             for i in 0..(16 / W::BYTES) {
                 let off = i * W::BYTES;
-                result[dst..dst+narrow_bytes].copy_from_slice(&arr_b[off..off+narrow_bytes]);
+                result[dst..dst + narrow_bytes]
+                    .copy_from_slice(&arr_b[off..off + narrow_bytes]);
                 dst += narrow_bytes;
             }
             // Upper 128 bits of a
             for i in (16 / W::BYTES)..(32 / W::BYTES) {
                 let off = i * W::BYTES;
-                result[dst..dst+narrow_bytes].copy_from_slice(&arr_a[off..off+narrow_bytes]);
+                result[dst..dst + narrow_bytes]
+                    .copy_from_slice(&arr_a[off..off + narrow_bytes]);
                 dst += narrow_bytes;
             }
             // Upper 128 bits of b
             for i in (16 / W::BYTES)..(32 / W::BYTES) {
                 let off = i * W::BYTES;
-                result[dst..dst+narrow_bytes].copy_from_slice(&arr_b[off..off+narrow_bytes]);
+                result[dst..dst + narrow_bytes]
+                    .copy_from_slice(&arr_b[off..off + narrow_bytes]);
                 dst += narrow_bytes;
             }
             V256::from_raw(_mm256_loadu_si256(result.as_ptr().cast()))
@@ -3315,15 +3674,15 @@ unsafe impl SimdShuffle for Avx2 {
             let raw = match T::BYTES {
                 1 => {
                     let idx = _mm256_set_epi8(
-                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6,
-                        7, 8, 9, 10, 11, 12, 13, 14, 15,
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                     );
                     _mm256_shuffle_epi8(swapped, idx)
                 }
                 2 => {
                     let idx = _mm256_set_epi8(
-                        1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14, 1, 0, 3, 2, 5, 4, 7,
-                        6, 9, 8, 11, 10, 13, 12, 15, 14,
+                        1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14,
+                        1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14,
                     );
                     _mm256_shuffle_epi8(swapped, idx)
                 }
@@ -3351,10 +3710,18 @@ unsafe impl SimdShuffle for Avx2 {
                     // imm8 = IDX | (IDX << 2) | (IDX << 4) | (IDX << 6)
                     // Since IDX is const, the match should optimize away.
                     match IDX {
-                        0 => V256::from_raw(_mm256_permute4x64_epi64(v.raw, 0x00)),
-                        1 => V256::from_raw(_mm256_permute4x64_epi64(v.raw, 0x55)),
-                        2 => V256::from_raw(_mm256_permute4x64_epi64(v.raw, 0xAA)),
-                        3 => V256::from_raw(_mm256_permute4x64_epi64(v.raw, 0xFF)),
+                        0 => V256::from_raw(_mm256_permute4x64_epi64(
+                            v.raw, 0x00,
+                        )),
+                        1 => V256::from_raw(_mm256_permute4x64_epi64(
+                            v.raw, 0x55,
+                        )),
+                        2 => V256::from_raw(_mm256_permute4x64_epi64(
+                            v.raw, 0xAA,
+                        )),
+                        3 => V256::from_raw(_mm256_permute4x64_epi64(
+                            v.raw, 0xFF,
+                        )),
                         _ => {
                             // Fallback for out-of-range (shouldn't happen)
                             let val: T = self.extract_lane(v, IDX);
@@ -3412,7 +3779,11 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    fn table_lookup_bytes<T: Lane>(self, table: V256<T>, idx: V256<T>) -> V256<T> {
+    fn table_lookup_bytes<T: Lane>(
+        self,
+        table: V256<T>,
+        idx: V256<T>,
+    ) -> V256<T> {
         // AVX2 pshufb operates within 128-bit lanes
         V256::from_raw(unsafe { _mm256_shuffle_epi8(table.raw, idx.raw) })
     }
@@ -3430,10 +3801,12 @@ unsafe impl SimdShuffle for Avx2 {
                 // For other sizes, extract and reinsert
                 let lanes = simd::lanes::<T, Avx2>();
                 let mut data: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
-                let mut indices: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                let mut indices: Aligned<A32, [u8; 32]> =
+                    Aligned::new([0u8; 32]);
                 _mm256_store_si256(data.as_mut_ptr().cast(), v.raw);
                 _mm256_store_si256(indices.as_mut_ptr().cast(), idx.raw);
-                let mut result: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                let mut result: Aligned<A32, [u8; 32]> =
+                    Aligned::new([0u8; 32]);
                 for i in 0..lanes {
                     let idx_off = i * I::BYTES;
                     let mut idx_val = 0u64;
@@ -3460,16 +3833,16 @@ unsafe impl SimdShuffle for Avx2 {
                 1 => {
                     // Swap adjacent bytes within each 128-bit lane
                     let idx = _mm256_set_epi8(
-                        14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1, 14, 15, 12, 13, 10,
-                        11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1,
+                        14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1,
+                        14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
                 2 => {
                     // Swap adjacent 16-bit pairs using byte shuffle
                     let idx = _mm256_set_epi8(
-                        13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2, 13, 12, 15, 14, 9, 8,
-                        11, 10, 5, 4, 7, 6, 1, 0, 3, 2,
+                        13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2,
+                        13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
@@ -3494,16 +3867,16 @@ unsafe impl SimdShuffle for Avx2 {
                 1 => {
                     // Reverse groups of 4 bytes within each 128-bit lane
                     let idx = _mm256_set_epi8(
-                        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9,
-                        10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+                        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+                        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
                 2 => {
                     // Reverse groups of 4 u16 within each 128-bit lane
                     let idx = _mm256_set_epi8(
-                        9, 8, 11, 10, 13, 12, 15, 14, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12,
-                        15, 14, 1, 0, 3, 2, 5, 4, 7, 6,
+                        9, 8, 11, 10, 13, 12, 15, 14, 1, 0, 3, 2, 5, 4, 7, 6,
+                        9, 8, 11, 10, 13, 12, 15, 14, 1, 0, 3, 2, 5, 4, 7, 6,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
@@ -3528,16 +3901,16 @@ unsafe impl SimdShuffle for Avx2 {
                 1 => {
                     // Reverse groups of 8 bytes within each 128-bit lane
                     let idx = _mm256_set_epi8(
-                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-                        14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
+                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
+                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
                 2 => {
                     // 8 u16 per 128-bit lane: reverse within each lane
                     let idx = _mm256_set_epi8(
-                        1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14, 1, 0, 3, 2, 5, 4, 7,
-                        6, 9, 8, 11, 10, 13, 12, 15, 14,
+                        1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14,
+                        1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14,
                     );
                     _mm256_shuffle_epi8(v.raw, idx)
                 }
@@ -3550,17 +3923,20 @@ unsafe impl SimdShuffle for Avx2 {
                     // 8-lane reverse not meaningful for 64-bit (only 4 lanes)
                     // Scalar fallback
                     let lanes = simd::lanes::<T, Avx2>();
-                    let mut arr: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                    let mut arr: Aligned<A32, [u8; 32]> =
+                        Aligned::new([0u8; 32]);
                     _mm256_store_si256(arr.as_mut_ptr().cast(), v.raw);
-                    let mut result: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                    let mut result: Aligned<A32, [u8; 32]> =
+                        Aligned::new([0u8; 32]);
                     let group = 8.min(lanes);
                     let num_groups = lanes / group;
                     for g in 0..num_groups {
                         for i in 0..group {
                             let src = (g * group + i) * T::BYTES;
                             let dst = (g * group + (group - 1 - i)) * T::BYTES;
-                            result[dst..dst + T::BYTES]
-                                .copy_from_slice(arr[src..src + T::BYTES].as_ref());
+                            result[dst..dst + T::BYTES].copy_from_slice(
+                                arr[src..src + T::BYTES].as_ref(),
+                            );
                         }
                     }
                     _mm256_load_si256(result.as_ptr().cast())
@@ -3605,7 +3981,9 @@ unsafe impl SimdShuffle for Avx2 {
                     let a_perm = _mm256_permute4x64_epi64(a.raw, 0b00_00_10_00); // [a0,a2,_,_]
                     let b_perm = _mm256_permute4x64_epi64(b.raw, 0b00_00_10_00); // [b0,b2,_,_]
                     // Data is in lower 128 bits of each; combine lower halves
-                    V256::from_raw(_mm256_permute2x128_si256(a_perm, b_perm, 0x20))
+                    V256::from_raw(_mm256_permute2x128_si256(
+                        a_perm, b_perm, 0x20,
+                    ))
                 }
                 2 => {
                     // 16 lanes of 16-bit. Even lanes: 0,2,4,6,8,10,12,14
@@ -3613,8 +3991,9 @@ unsafe impl SimdShuffle for Avx2 {
                     // within each 128-bit lane, then combine.
                     // Even 16-bit lanes in lower 128-bit half: bytes 0-1, 4-5, 8-9, 12-13
                     let shuf_even = _mm256_setr_epi8(
-                        0, 1, 4, 5, 8, 9, 12, 13, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 4, 5, 8, 9,
-                        12, 13, -1, -1, -1, -1, -1, -1, -1, -1,
+                        0, 1, 4, 5, 8, 9, 12, 13, -1, -1, -1, -1, -1, -1, -1,
+                        -1, 0, 1, 4, 5, 8, 9, 12, 13, -1, -1, -1, -1, -1, -1,
+                        -1, -1,
                     );
                     let a_shuf = _mm256_shuffle_epi8(a.raw, shuf_even);
                     let b_shuf = _mm256_shuffle_epi8(b.raw, shuf_even);
@@ -3635,13 +4014,16 @@ unsafe impl SimdShuffle for Avx2 {
                     // a_packed lower 128 has all 8 even lanes from a
                     // b_packed lower 128 has all 8 even lanes from b
                     // Combine lower halves: a's lower 128 -> result lower, b's lower 128 -> result upper
-                    V256::from_raw(_mm256_permute2x128_si256(a_packed, b_packed, 0x20))
+                    V256::from_raw(_mm256_permute2x128_si256(
+                        a_packed, b_packed, 0x20,
+                    ))
                 }
                 1 => {
                     // 32 lanes of 8-bit. Even lanes: 0,2,4,...,30
                     let shuf_even = _mm256_setr_epi8(
-                        0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 4, 6, 8,
-                        10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1,
+                        0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1,
+                        -1, 0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1,
+                        -1, -1,
                     );
                     let a_shuf = _mm256_shuffle_epi8(a.raw, shuf_even);
                     let b_shuf = _mm256_shuffle_epi8(b.raw, shuf_even);
@@ -3653,7 +4035,9 @@ unsafe impl SimdShuffle for Avx2 {
                         b_shuf,
                         _mm256_setr_epi32(0, 1, 4, 5, 0, 0, 0, 0),
                     );
-                    V256::from_raw(_mm256_permute2x128_si256(a_packed, b_packed, 0x20))
+                    V256::from_raw(_mm256_permute2x128_si256(
+                        a_packed, b_packed, 0x20,
+                    ))
                 }
                 _ => unreachable!(),
             }
@@ -3675,13 +4059,16 @@ unsafe impl SimdShuffle for Avx2 {
                     let a_perm = _mm256_permute4x64_epi64(a.raw, 0b00_00_11_01); // [a1,a3,_,_]
                     let b_perm = _mm256_permute4x64_epi64(b.raw, 0b00_00_11_01); // [b1,b3,_,_]
                     // Data is in lower 128 bits of each; combine lower halves
-                    V256::from_raw(_mm256_permute2x128_si256(a_perm, b_perm, 0x20))
+                    V256::from_raw(_mm256_permute2x128_si256(
+                        a_perm, b_perm, 0x20,
+                    ))
                 }
                 2 => {
                     // Odd 16-bit lanes: bytes 2-3, 6-7, 10-11, 14-15
                     let shuf_odd = _mm256_setr_epi8(
-                        2, 3, 6, 7, 10, 11, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, 2, 3, 6, 7, 10,
-                        11, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1,
+                        2, 3, 6, 7, 10, 11, 14, 15, -1, -1, -1, -1, -1, -1, -1,
+                        -1, 2, 3, 6, 7, 10, 11, 14, 15, -1, -1, -1, -1, -1, -1,
+                        -1, -1,
                     );
                     let a_shuf = _mm256_shuffle_epi8(a.raw, shuf_odd);
                     let b_shuf = _mm256_shuffle_epi8(b.raw, shuf_odd);
@@ -3693,12 +4080,15 @@ unsafe impl SimdShuffle for Avx2 {
                         b_shuf,
                         _mm256_setr_epi32(0, 1, 4, 5, 0, 0, 0, 0),
                     );
-                    V256::from_raw(_mm256_permute2x128_si256(a_packed, b_packed, 0x20))
+                    V256::from_raw(_mm256_permute2x128_si256(
+                        a_packed, b_packed, 0x20,
+                    ))
                 }
                 1 => {
                     let shuf_odd = _mm256_setr_epi8(
-                        1, 3, 5, 7, 9, 11, 13, 15, -1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9,
-                        11, 13, 15, -1, -1, -1, -1, -1, -1, -1, -1,
+                        1, 3, 5, 7, 9, 11, 13, 15, -1, -1, -1, -1, -1, -1, -1,
+                        -1, 1, 3, 5, 7, 9, 11, 13, 15, -1, -1, -1, -1, -1, -1,
+                        -1, -1,
                     );
                     let a_shuf = _mm256_shuffle_epi8(a.raw, shuf_odd);
                     let b_shuf = _mm256_shuffle_epi8(b.raw, shuf_odd);
@@ -3710,7 +4100,9 @@ unsafe impl SimdShuffle for Avx2 {
                         b_shuf,
                         _mm256_setr_epi32(0, 1, 4, 5, 0, 0, 0, 0),
                     );
-                    V256::from_raw(_mm256_permute2x128_si256(a_packed, b_packed, 0x20))
+                    V256::from_raw(_mm256_permute2x128_si256(
+                        a_packed, b_packed, 0x20,
+                    ))
                 }
                 _ => unreachable!(),
             }
@@ -3764,7 +4156,8 @@ unsafe impl SimdShuffle for Avx2 {
                 // For u64, treat as pairs of u32 lanes (amt * 2).
                 let i32_amt = (n * (T::BYTES / 4)) as u32;
                 let iota = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
-                let start = _mm256_set1_epi32(0u32.wrapping_sub(i32_amt) as i32);
+                let start =
+                    _mm256_set1_epi32(0u32.wrapping_sub(i32_amt) as i32);
                 let idx = _mm256_add_epi32(iota, start);
                 let max_idx = _mm256_set1_epi32(7);
                 let masked_idx = _mm256_and_si256(idx, max_idx);
@@ -3779,7 +4172,9 @@ unsafe impl SimdShuffle for Avx2 {
                 }
                 let mut buf: Aligned<A32, [u8; 64]> = Aligned::new([0u8; 64]);
                 _mm256_store_si256(buf.as_mut_ptr().add(32).cast(), v.raw);
-                V256::from_raw(_mm256_loadu_si256(buf.as_ptr().add(32 - byte_shift).cast()))
+                V256::from_raw(_mm256_loadu_si256(
+                    buf.as_ptr().add(32 - byte_shift).cast(),
+                ))
             }
         }
     }
@@ -3806,7 +4201,9 @@ unsafe impl SimdShuffle for Avx2 {
                 }
                 let mut buf: Aligned<A32, [u8; 64]> = Aligned::new([0u8; 64]);
                 _mm256_store_si256(buf.as_mut_ptr().cast(), v.raw);
-                V256::from_raw(_mm256_loadu_si256(buf.as_ptr().add(byte_shift).cast()))
+                V256::from_raw(_mm256_loadu_si256(
+                    buf.as_ptr().add(byte_shift).cast(),
+                ))
             }
         }
     }
@@ -3816,32 +4213,41 @@ unsafe impl SimdShuffle for Avx2 {
         unsafe {
             if T::BYTES == 4 {
                 // LUT-based compress for 8 * u32/i32/f32 lanes.
-                let mask_bits = _mm256_movemask_ps(_mm256_castsi256_ps(mask.raw)) as usize;
-                let packed = _mm256_set1_epi32(COMPRESS_32X8_LUT.value[mask_bits] as i32);
+                let mask_bits =
+                    _mm256_movemask_ps(_mm256_castsi256_ps(mask.raw)) as usize;
+                let packed = _mm256_set1_epi32(
+                    COMPRESS_32X8_LUT.value[mask_bits] as i32,
+                );
                 let shifts = _mm256_setr_epi32(0, 4, 8, 12, 16, 20, 24, 28);
                 let indices = _mm256_srlv_epi32(packed, shifts);
                 V256::from_raw(_mm256_permutevar8x32_epi32(v.raw, indices))
             } else if T::BYTES == 8 {
                 // LUT-based compress for 4 * u64/i64/f64 lanes.
-                let mask_bits = _mm256_movemask_pd(_mm256_castsi256_pd(mask.raw)) as usize;
-                let idx_ptr = COMPRESS_64X4_LUT.value.as_ptr().add(mask_bits * 8);
+                let mask_bits =
+                    _mm256_movemask_pd(_mm256_castsi256_pd(mask.raw)) as usize;
+                let idx_ptr =
+                    COMPRESS_64X4_LUT.value.as_ptr().add(mask_bits * 8);
                 let indices = _mm256_load_si256(idx_ptr.cast());
                 V256::from_raw(_mm256_permutevar8x32_epi32(v.raw, indices))
             } else {
                 // u8/u16/i8/i16: LUT infeasible, use scalar fallback.
                 let lanes = simd::lanes::<T, Avx2>();
                 let mut data: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
-                let mut mask_arr: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                let mut mask_arr: Aligned<A32, [u8; 32]> =
+                    Aligned::new([0u8; 32]);
                 _mm256_store_si256(data.as_mut_ptr().cast(), v.raw);
                 _mm256_store_si256(mask_arr.as_mut_ptr().cast(), mask.raw);
-                let mut result: Aligned<A32, [u8; 32]> = Aligned::new([0u8; 32]);
+                let mut result: Aligned<A32, [u8; 32]> =
+                    Aligned::new([0u8; 32]);
                 let mut dst = 0usize;
                 for i in 0..lanes {
                     let off = i * T::BYTES;
                     let mask_byte = mask_arr[off + T::BYTES - 1];
                     if mask_byte & 0x80 != 0 {
                         result[dst * T::BYTES..(dst + 1) * T::BYTES]
-                            .copy_from_slice(data[off..off + T::BYTES].as_ref());
+                            .copy_from_slice(
+                                data[off..off + T::BYTES].as_ref(),
+                            );
                         dst += 1;
                     }
                 }
@@ -3851,7 +4257,12 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn compress_store<T: Lane>(self, v: V256<T>, mask: M256<T>, ptr: *mut T) -> usize {
+    unsafe fn compress_store<T: Lane>(
+        self,
+        v: V256<T>,
+        mask: M256<T>,
+        ptr: *mut T,
+    ) -> usize {
         unsafe {
             let compressed = self.compress(v, mask);
             let count = self.count_true::<T>(mask);
@@ -3866,9 +4277,13 @@ unsafe impl SimdShuffle for Avx2 {
     fn dup_even<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
-                _mm256_castps_si256(_mm256_moveldup_ps(_mm256_castsi256_ps(v.raw)))
+                _mm256_castps_si256(_mm256_moveldup_ps(_mm256_castsi256_ps(
+                    v.raw,
+                )))
             } else if is_type::<T, f64>() {
-                _mm256_castpd_si256(_mm256_movedup_pd(_mm256_castsi256_pd(v.raw)))
+                _mm256_castpd_si256(_mm256_movedup_pd(_mm256_castsi256_pd(
+                    v.raw,
+                )))
             } else if T::BYTES == 4 {
                 // u32/i32: [v0,v0,v2,v2] per 128-bit lane
                 _mm256_shuffle_epi32(v.raw, 0xA0)
@@ -3877,11 +4292,17 @@ unsafe impl SimdShuffle for Avx2 {
                 _mm256_unpacklo_epi64(v.raw, v.raw)
             } else if T::BYTES == 2 {
                 // u16/i16: duplicate even 16-bit lanes
-                let even = _mm256_and_si256(v.raw, _mm256_set1_epi32(0x0000FFFFu32 as i32));
+                let even = _mm256_and_si256(
+                    v.raw,
+                    _mm256_set1_epi32(0x0000FFFFu32 as i32),
+                );
                 _mm256_or_si256(even, _mm256_slli_epi32(even, 16))
             } else {
                 // u8/i8: duplicate even bytes
-                let even = _mm256_and_si256(v.raw, _mm256_set1_epi16(0x00FFu16 as i16));
+                let even = _mm256_and_si256(
+                    v.raw,
+                    _mm256_set1_epi16(0x00FFu16 as i16),
+                );
                 _mm256_or_si256(even, _mm256_slli_epi16(even, 8))
             };
             V256::from_raw(raw)
@@ -3892,9 +4313,13 @@ unsafe impl SimdShuffle for Avx2 {
     fn dup_odd<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
-                _mm256_castps_si256(_mm256_movehdup_ps(_mm256_castsi256_ps(v.raw)))
+                _mm256_castps_si256(_mm256_movehdup_ps(_mm256_castsi256_ps(
+                    v.raw,
+                )))
             } else if is_type::<T, f64>() {
-                _mm256_castpd_si256(_mm256_permute_pd::<0xF>(_mm256_castsi256_pd(v.raw)))
+                _mm256_castpd_si256(_mm256_permute_pd::<0xF>(
+                    _mm256_castsi256_pd(v.raw),
+                ))
             } else if T::BYTES == 4 {
                 // u32/i32: [v1,v1,v3,v3] per 128-bit lane
                 _mm256_shuffle_epi32(v.raw, 0xF5)
@@ -3915,23 +4340,19 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    fn concat_lower_lower<T: Lane>(
-        self,
-        hi: V256<T>,
-        lo: V256<T>,
-    ) -> V256<T> {
+    fn concat_lower_lower<T: Lane>(self, hi: V256<T>, lo: V256<T>) -> V256<T> {
         // Lower 128 of lo in low, lower 128 of hi in high
-        V256::from_raw(unsafe { _mm256_permute2x128_si256(lo.raw, hi.raw, 0x20) })
+        V256::from_raw(unsafe {
+            _mm256_permute2x128_si256(lo.raw, hi.raw, 0x20)
+        })
     }
 
     #[inline(always)]
-    fn concat_upper_upper<T: Lane>(
-        self,
-        hi: V256<T>,
-        lo: V256<T>,
-    ) -> V256<T> {
+    fn concat_upper_upper<T: Lane>(self, hi: V256<T>, lo: V256<T>) -> V256<T> {
         // Upper 128 of lo in low, upper 128 of hi in high
-        V256::from_raw(unsafe { _mm256_permute2x128_si256(lo.raw, hi.raw, 0x31) })
+        V256::from_raw(unsafe {
+            _mm256_permute2x128_si256(lo.raw, hi.raw, 0x31)
+        })
     }
 
     #[inline(always)]
@@ -3947,7 +4368,8 @@ unsafe impl SimdShuffle for Avx2 {
             };
             // Handle cross-lane carry: top element of lower 128 -> bottom of upper 128
             // carry_lane = [zero, lower_128_of_v]
-            let carry_lane = _mm256_permute2x128_si256(v.raw, _mm256_setzero_si256(), 0x03);
+            let carry_lane =
+                _mm256_permute2x128_si256(v.raw, _mm256_setzero_si256(), 0x03);
             let carry = match T::BYTES {
                 1 => _mm256_bsrli_epi128(carry_lane, 15),
                 2 => _mm256_bsrli_epi128(carry_lane, 14),
@@ -3971,7 +4393,8 @@ unsafe impl SimdShuffle for Avx2 {
             };
             // Carry: lowest element of upper lane -> highest position of lower lane
             // carry_lane = [upper_128_of_v, zero]
-            let carry_lane = _mm256_permute2x128_si256(v.raw, _mm256_setzero_si256(), 0x21);
+            let carry_lane =
+                _mm256_permute2x128_si256(v.raw, _mm256_setzero_si256(), 0x21);
             let carry = match T::BYTES {
                 1 => _mm256_bslli_epi128(carry_lane, 15),
                 2 => _mm256_bslli_epi128(carry_lane, 14),
@@ -3998,8 +4421,9 @@ unsafe impl SimdShuffle for Avx2 {
                 let off = i * T::BYTES;
                 let mask_byte = mask_arr[off + T::BYTES - 1];
                 if mask_byte & 0x80 != 0 {
-                    result[off..off + T::BYTES]
-                        .copy_from_slice(&data[src * T::BYTES..(src + 1) * T::BYTES]);
+                    result[off..off + T::BYTES].copy_from_slice(
+                        &data[src * T::BYTES..(src + 1) * T::BYTES],
+                    );
                     src += 1;
                 }
                 // else: result stays zero
@@ -4056,25 +4480,17 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    fn odd_even_blocks<T: Lane>(
-        self,
-        odd: V256<T>,
-        even: V256<T>,
-    ) -> V256<T> {
+    fn odd_even_blocks<T: Lane>(self, odd: V256<T>, even: V256<T>) -> V256<T> {
         // AVX2: 2 blocks. Block 0 (lower 128) from even, block 1 (upper 128) from odd.
         // _mm256_blend_epi32 with mask 0x0F: lower 4 i32 from even, upper 4 from odd.
-        unsafe {
-            V256::from_raw(_mm256_blend_epi32(odd.raw, even.raw, 0x0F))
-        }
+        unsafe { V256::from_raw(_mm256_blend_epi32(odd.raw, even.raw, 0x0F)) }
     }
 
     #[inline(always)]
     fn reverse_blocks<T: Lane>(self, v: V256<T>) -> V256<T> {
         // Swap the two 128-bit halves. _mm256_permute4x64_epi64(v, 0x4E) swaps
         // the two 128-bit lanes (01|23 -> 23|01).
-        unsafe {
-            V256::from_raw(_mm256_permute4x64_epi64(v.raw, 0x4E))
-        }
+        unsafe { V256::from_raw(_mm256_permute4x64_epi64(v.raw, 0x4E)) }
     }
 
     #[inline(always)]
@@ -4104,7 +4520,11 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn compress_bits<T: Lane>(self, v: V256<T>, bits: *const u8) -> V256<T> {
+    unsafe fn compress_bits<T: Lane>(
+        self,
+        v: V256<T>,
+        bits: *const u8,
+    ) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut mask_arr = [0u8; 32];
@@ -4118,13 +4538,19 @@ unsafe impl SimdShuffle for Avx2 {
                     }
                 }
             }
-            let mask = M256::from_raw(_mm256_loadu_si256(mask_arr.as_ptr().cast()));
+            let mask =
+                M256::from_raw(_mm256_loadu_si256(mask_arr.as_ptr().cast()));
             self.compress(v, mask)
         }
     }
 
     #[inline(always)]
-    unsafe fn compress_bits_store<T: Lane>(self, v: V256<T>, bits: *const u8, ptr: *mut T) -> usize {
+    unsafe fn compress_bits_store<T: Lane>(
+        self,
+        v: V256<T>,
+        bits: *const u8,
+        ptr: *mut T,
+    ) -> usize {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut mask_arr = [0u8; 32];
@@ -4138,7 +4564,8 @@ unsafe impl SimdShuffle for Avx2 {
                     }
                 }
             }
-            let mask = M256::from_raw(_mm256_loadu_si256(mask_arr.as_ptr().cast()));
+            let mask =
+                M256::from_raw(_mm256_loadu_si256(mask_arr.as_ptr().cast()));
             self.compress_store(v, mask, ptr)
         }
     }
@@ -4153,12 +4580,18 @@ unsafe impl SimdShuffle for Avx2 {
     #[inline(always)]
     fn upper_half<T: Lane>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
         unsafe {
-            crate::backend::sse2::V128::from_raw(_mm256_extracti128_si256(v.raw, 1))
+            crate::backend::sse2::V128::from_raw(_mm256_extracti128_si256(
+                v.raw, 1,
+            ))
         }
     }
 
     #[inline(always)]
-    fn combine<T: Lane>(self, lo: crate::backend::sse2::V128<T>, hi: crate::backend::sse2::V128<T>) -> V256<T> {
+    fn combine<T: Lane>(
+        self,
+        lo: crate::backend::sse2::V128<T>,
+        hi: crate::backend::sse2::V128<T>,
+    ) -> V256<T> {
         unsafe {
             let lo256 = _mm256_castsi128_si256(lo.raw());
             V256::from_raw(_mm256_inserti128_si256(lo256, hi.raw(), 1))
@@ -4166,7 +4599,11 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    fn insert_block<T: Lane, const IDX: usize>(self, v: V256<T>, blk: crate::backend::sse2::V128<T>) -> V256<T> {
+    fn insert_block<T: Lane, const IDX: usize>(
+        self,
+        v: V256<T>,
+        blk: crate::backend::sse2::V128<T>,
+    ) -> V256<T> {
         unsafe {
             if IDX == 0 {
                 V256::from_raw(_mm256_inserti128_si256(v.raw, blk.raw(), 0))
@@ -4177,18 +4614,29 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    fn extract_block<T: Lane, const IDX: usize>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
+    fn extract_block<T: Lane, const IDX: usize>(
+        self,
+        v: V256<T>,
+    ) -> crate::backend::sse2::V128<T> {
         unsafe {
             if IDX == 0 {
-                crate::backend::sse2::V128::from_raw(_mm256_castsi256_si128(v.raw))
+                crate::backend::sse2::V128::from_raw(_mm256_castsi256_si128(
+                    v.raw,
+                ))
             } else {
-                crate::backend::sse2::V128::from_raw(_mm256_extracti128_si256(v.raw, 1))
+                crate::backend::sse2::V128::from_raw(_mm256_extracti128_si256(
+                    v.raw, 1,
+                ))
             }
         }
     }
 
     #[inline(always)]
-    fn interleave_whole_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_whole_lower<T: Lane>(
+        self,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         // Cross-block interleave of lower halves
         // Result: interleave lanes from lower half of a and lower half of b
         {
@@ -4199,7 +4647,11 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    fn interleave_whole_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_whole_upper<T: Lane>(
+        self,
+        a: V256<T>,
+        b: V256<T>,
+    ) -> V256<T> {
         // Cross-block interleave of upper halves
         {
             let il = self.interleave_lower(a, b);
@@ -4278,17 +4730,36 @@ unsafe impl SimdShuffle for Avx2 {
                 let idx_off = i * I::BYTES;
                 let lane_idx: usize = match I::BYTES {
                     1 => arr_idx[idx_off] as usize,
-                    2 => u16::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1]]) as usize,
-                    4 => u32::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3]]) as usize,
-                    _ => u64::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3], arr_idx[idx_off+4], arr_idx[idx_off+5], arr_idx[idx_off+6], arr_idx[idx_off+7]]) as usize,
+                    2 => u16::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                    ]) as usize,
+                    4 => u32::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                    ]) as usize,
+                    _ => u64::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                        arr_idx[idx_off + 4],
+                        arr_idx[idx_off + 5],
+                        arr_idx[idx_off + 6],
+                        arr_idx[idx_off + 7],
+                    ]) as usize,
                 };
                 let dst_off = i * T::BYTES;
                 if lane_idx < lanes {
                     let src_off = lane_idx * T::BYTES;
-                    result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_a[src_off..src_off+T::BYTES]);
+                    result[dst_off..dst_off + T::BYTES]
+                        .copy_from_slice(&arr_a[src_off..src_off + T::BYTES]);
                 } else if lane_idx < 2 * lanes {
                     let src_off = (lane_idx - lanes) * T::BYTES;
-                    result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_b[src_off..src_off+T::BYTES]);
+                    result[dst_off..dst_off + T::BYTES]
+                        .copy_from_slice(&arr_b[src_off..src_off + T::BYTES]);
                 }
             }
             V256::from_raw(_mm256_loadu_si256(result.as_ptr().cast()))
@@ -4312,9 +4783,26 @@ unsafe impl SimdShuffle for Avx2 {
                 let idx_off = i * I::BYTES;
                 let lane_idx_signed: i64 = match I::BYTES {
                     1 => arr_idx[idx_off] as i8 as i64,
-                    2 => i16::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1]]) as i64,
-                    4 => i32::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3]]) as i64,
-                    _ => i64::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3], arr_idx[idx_off+4], arr_idx[idx_off+5], arr_idx[idx_off+6], arr_idx[idx_off+7]]),
+                    2 => i16::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                    ]) as i64,
+                    4 => i32::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                    ]) as i64,
+                    _ => i64::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                        arr_idx[idx_off + 4],
+                        arr_idx[idx_off + 5],
+                        arr_idx[idx_off + 6],
+                        arr_idx[idx_off + 7],
+                    ]),
                 };
                 let dst_off = i * T::BYTES;
                 if lane_idx_signed < 0 || lane_idx_signed as usize >= lanes {
@@ -4323,7 +4811,8 @@ unsafe impl SimdShuffle for Avx2 {
                     }
                 } else {
                     let src_off = (lane_idx_signed as usize) * T::BYTES;
-                    result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_v[src_off..src_off+T::BYTES]);
+                    result[dst_off..dst_off + T::BYTES]
+                        .copy_from_slice(&arr_v[src_off..src_off + T::BYTES]);
                 }
             }
             V256::from_raw(_mm256_loadu_si256(result.as_ptr().cast()))
@@ -4396,7 +4885,9 @@ unsafe impl SimdReduce for Avx2 {
         unsafe {
             // Tree reduction: swap 128-bit halves, min, then shift-and-min within lower half.
             // _mm256_permute2x128_si256(v, v, 0x01) swaps the two 128-bit halves.
-            let swapped = V256::<T>::from_raw(_mm256_permute2x128_si256(v.raw, v.raw, 0x01));
+            let swapped = V256::<T>::from_raw(_mm256_permute2x128_si256(
+                v.raw, v.raw, 0x01,
+            ));
             let mut r = self.min(v, swapped);
             // Now the answer is fully in the lower 128-bit lane.
             // _mm256_srli_si256 shifts within each 128-bit lane, which is what we want.
@@ -4422,14 +4913,18 @@ unsafe impl SimdReduce for Avx2 {
                 4 => {
                     if is_type::<T, f32>() {
                         // For f32, use shuffle within 128-bit lane for reduction
-                        let s = V256::<T>::from_raw(_mm256_srli_si256::<8>(r.raw));
+                        let s =
+                            V256::<T>::from_raw(_mm256_srli_si256::<8>(r.raw));
                         r = self.min(r, s);
-                        let s = V256::<T>::from_raw(_mm256_srli_si256::<4>(r.raw));
+                        let s =
+                            V256::<T>::from_raw(_mm256_srli_si256::<4>(r.raw));
                         r = self.min(r, s);
                     } else {
-                        let s = V256::<T>::from_raw(_mm256_srli_si256::<8>(r.raw));
+                        let s =
+                            V256::<T>::from_raw(_mm256_srli_si256::<8>(r.raw));
                         r = self.min(r, s);
-                        let s = V256::<T>::from_raw(_mm256_srli_si256::<4>(r.raw));
+                        let s =
+                            V256::<T>::from_raw(_mm256_srli_si256::<4>(r.raw));
                         r = self.min(r, s);
                     }
                 }
@@ -4446,7 +4941,9 @@ unsafe impl SimdReduce for Avx2 {
     #[inline(always)]
     fn max_of_lanes<T: Lane>(self, v: V256<T>) -> T {
         unsafe {
-            let swapped = V256::<T>::from_raw(_mm256_permute2x128_si256(v.raw, v.raw, 0x01));
+            let swapped = V256::<T>::from_raw(_mm256_permute2x128_si256(
+                v.raw, v.raw, 0x01,
+            ));
             let mut r = self.max(v, swapped);
             match T::BYTES {
                 1 => {
@@ -4484,11 +4981,7 @@ unsafe impl SimdReduce for Avx2 {
     }
 
     #[inline(always)]
-    fn sums_of_8_abs_diff(
-        self,
-        a: V256<u8>,
-        b: V256<u8>,
-    ) -> V256<u64> {
+    fn sums_of_8_abs_diff(self, a: V256<u8>, b: V256<u8>) -> V256<u64> {
         V256::from_raw(unsafe { _mm256_sad_epu8(a.raw, b.raw) })
     }
 
@@ -4528,9 +5021,11 @@ unsafe impl SimdReduce for Avx2 {
                 // i32 -> i64: scalar fallback
                 let mut arr: Aligned<A32, [i32; 8]> = Aligned::new([0i32; 8]);
                 _mm256_store_si256(arr.as_mut_ptr().cast(), v.raw);
-                let mut result: Aligned<A32, [i64; 4]> = Aligned::new([0i64; 4]);
+                let mut result: Aligned<A32, [i64; 4]> =
+                    Aligned::new([0i64; 4]);
                 for i in 0..4 {
-                    result.value[i] = arr.value[i * 2] as i64 + arr.value[i * 2 + 1] as i64;
+                    result.value[i] =
+                        arr.value[i * 2] as i64 + arr.value[i * 2 + 1] as i64;
                 }
                 _mm256_load_si256(result.as_ptr().cast())
             } else if is_type::<T, f32>() {
@@ -4589,9 +5084,9 @@ unsafe impl SimdFloat for Avx2 {
     fn approx_reciprocal<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if T::BYTES == 4 {
-                V256::from_raw(_mm256_castps_si256(_mm256_rcp_ps(_mm256_castsi256_ps(
-                    v.raw,
-                ))))
+                V256::from_raw(_mm256_castps_si256(_mm256_rcp_ps(
+                    _mm256_castsi256_ps(v.raw),
+                )))
             } else {
                 let ones = _mm256_set1_pd(1.0);
                 V256::from_raw(_mm256_castpd_si256(_mm256_div_pd(
@@ -4606,9 +5101,9 @@ unsafe impl SimdFloat for Avx2 {
     fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if T::BYTES == 4 {
-                V256::from_raw(_mm256_castps_si256(_mm256_rsqrt_ps(_mm256_castsi256_ps(
-                    v.raw,
-                ))))
+                V256::from_raw(_mm256_castps_si256(_mm256_rsqrt_ps(
+                    _mm256_castsi256_ps(v.raw),
+                )))
             } else {
                 let ones = _mm256_set1_pd(1.0);
                 let sq = _mm256_sqrt_pd(_mm256_castsi256_pd(v.raw));
@@ -4678,7 +5173,12 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    fn mul_add<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn mul_add<T: FloatLane>(
+        self,
+        a: V256<T>,
+        b: V256<T>,
+        c: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fmadd_ps(
@@ -4698,7 +5198,12 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    fn neg_mul_add<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn neg_mul_add<T: FloatLane>(
+        self,
+        a: V256<T>,
+        b: V256<T>,
+        c: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fnmadd_ps(
@@ -4718,7 +5223,12 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    fn mul_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn mul_sub<T: FloatLane>(
+        self,
+        a: V256<T>,
+        b: V256<T>,
+        c: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fmsub_ps(
@@ -4738,7 +5248,12 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    fn neg_mul_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn neg_mul_sub<T: FloatLane>(
+        self,
+        a: V256<T>,
+        b: V256<T>,
+        c: V256<T>,
+    ) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fnmsub_ps(
@@ -4766,7 +5281,8 @@ unsafe impl SimdFloat for Avx2 {
                 let sign_bit = _mm256_and_si256(sign_mask, sign.raw);
                 V256::from_raw(_mm256_or_si256(abs_mag, sign_bit))
             } else {
-                let sign_mask = _mm256_set1_epi64x(0x8000_0000_0000_0000u64 as i64);
+                let sign_mask =
+                    _mm256_set1_epi64x(0x8000_0000_0000_0000u64 as i64);
                 let abs_mag = _mm256_andnot_si256(sign_mask, mag.raw);
                 let sign_bit = _mm256_and_si256(sign_mask, sign.raw);
                 V256::from_raw(_mm256_or_si256(abs_mag, sign_bit))
@@ -4797,8 +5313,10 @@ unsafe impl SimdFloat for Avx2 {
                 let abs_v = _mm256_and_si256(v.raw, abs_mask);
                 M256::from_raw(_mm256_cmpeq_epi32(abs_v, inf_bits))
             } else {
-                let abs_mask = _mm256_set1_epi64x(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
-                let inf_bits = _mm256_set1_epi64x(0x7FF0_0000_0000_0000u64 as i64);
+                let abs_mask =
+                    _mm256_set1_epi64x(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
+                let inf_bits =
+                    _mm256_set1_epi64x(0x7FF0_0000_0000_0000u64 as i64);
                 let abs_v = _mm256_and_si256(v.raw, abs_mask);
                 M256::from_raw(_mm256_cmpeq_epi64(abs_v, inf_bits))
             }
@@ -4825,13 +5343,15 @@ unsafe impl SimdFloat for Avx2 {
     fn is_finite<T: FloatLane>(self, v: V256<T>) -> M256<T> {
         unsafe {
             if T::BYTES == 4 {
-                let shifted = _mm256_srli_epi32(_mm256_slli_epi32(v.raw, 1), 24);
+                let shifted =
+                    _mm256_srli_epi32(_mm256_slli_epi32(v.raw, 1), 24);
                 let max_exp = _mm256_set1_epi32(0xFF);
                 // AVX2 has no unsigned cmplt; both values are small positive, so signed works.
                 M256::from_raw(_mm256_cmpgt_epi32(max_exp, shifted))
             } else {
                 // f64: check high dword exponent field < 0x7FF00000
-                let abs_mask = _mm256_set1_epi64x(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
+                let abs_mask =
+                    _mm256_set1_epi64x(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
                 let abs_v = _mm256_and_si256(v.raw, abs_mask);
                 let inf = _mm256_set1_epi64x(0x7FF0_0000_0000_0000u64 as i64);
                 // finite iff high32(abs_v) < high32(inf). Use scalar-like approach.
@@ -4844,11 +5364,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    fn add_sub<T: FloatLane>(
-        self,
-        a: V256<T>,
-        b: V256<T>,
-    ) -> V256<T> {
+    fn add_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 // AVX has _mm256_addsub_ps: [a0-b0, a1+b1, a2-b2, a3+b3, ...]
@@ -5037,7 +5553,11 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    fn aes_last_round_inv(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
+    fn aes_last_round_inv(
+        self,
+        state: V256<u8>,
+        round_key: V256<u8>,
+    ) -> V256<u8> {
         unsafe {
             let lo_s = _mm256_castsi256_si128(state.raw);
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
@@ -5094,9 +5614,11 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
                 _mm256_storeu_si256(arr_a.as_mut_ptr().cast(), a.raw);
                 _mm256_storeu_si256(arr_b.as_mut_ptr().cast(), b.raw);
                 // Block 0: lower u64 of first 128-bit block
-                let (lo0, hi0) = super::crypto_soft::clmul_64(arr_a[0], arr_b[0]);
+                let (lo0, hi0) =
+                    super::crypto_soft::clmul_64(arr_a[0], arr_b[0]);
                 // Block 1: lower u64 of second 128-bit block
-                let (lo1, hi1) = super::crypto_soft::clmul_64(arr_a[2], arr_b[2]);
+                let (lo1, hi1) =
+                    super::crypto_soft::clmul_64(arr_a[2], arr_b[2]);
                 let result = [lo0, hi0, lo1, hi1];
                 V256::from_raw(_mm256_loadu_si256(result.as_ptr().cast()))
             }
@@ -5124,9 +5646,11 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
                 _mm256_storeu_si256(arr_a.as_mut_ptr().cast(), a.raw);
                 _mm256_storeu_si256(arr_b.as_mut_ptr().cast(), b.raw);
                 // Block 0: upper u64 of first 128-bit block
-                let (lo0, hi0) = super::crypto_soft::clmul_64(arr_a[1], arr_b[1]);
+                let (lo0, hi0) =
+                    super::crypto_soft::clmul_64(arr_a[1], arr_b[1]);
                 // Block 1: upper u64 of second 128-bit block
-                let (lo1, hi1) = super::crypto_soft::clmul_64(arr_a[3], arr_b[3]);
+                let (lo1, hi1) =
+                    super::crypto_soft::clmul_64(arr_a[3], arr_b[3]);
                 let result = [lo0, hi0, lo1, hi1];
                 V256::from_raw(_mm256_loadu_si256(result.as_ptr().cast()))
             }
@@ -5141,17 +5665,27 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             if is_x86_feature_detected!("aes") {
                 let r_lo = _mm_aeskeygenassist_si128(lo, RCON);
                 let r_hi = _mm_aeskeygenassist_si128(hi, RCON);
-                V256::from_raw(_mm256_inserti128_si256(_mm256_castsi128_si256(r_lo), r_hi, 1))
+                V256::from_raw(_mm256_inserti128_si256(
+                    _mm256_castsi128_si256(r_lo),
+                    r_hi,
+                    1,
+                ))
             } else {
                 let mut b_lo = [0u8; 16];
                 let mut b_hi = [0u8; 16];
                 _mm_storeu_si128(b_lo.as_mut_ptr().cast(), lo);
                 _mm_storeu_si128(b_hi.as_mut_ptr().cast(), hi);
-                let r_lo = super::crypto_soft::aes_key_gen_assist(&b_lo, RCON as u8);
-                let r_hi = super::crypto_soft::aes_key_gen_assist(&b_hi, RCON as u8);
+                let r_lo =
+                    super::crypto_soft::aes_key_gen_assist(&b_lo, RCON as u8);
+                let r_hi =
+                    super::crypto_soft::aes_key_gen_assist(&b_hi, RCON as u8);
                 let v_lo = _mm_loadu_si128(r_lo.as_ptr().cast());
                 let v_hi = _mm_loadu_si128(r_hi.as_ptr().cast());
-                V256::from_raw(_mm256_inserti128_si256(_mm256_castsi128_si256(v_lo), v_hi, 1))
+                V256::from_raw(_mm256_inserti128_si256(
+                    _mm256_castsi128_si256(v_lo),
+                    v_hi,
+                    1,
+                ))
             }
         }
     }
@@ -5164,7 +5698,11 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             if is_x86_feature_detected!("aes") {
                 let r_lo = _mm_aesimc_si128(lo);
                 let r_hi = _mm_aesimc_si128(hi);
-                V256::from_raw(_mm256_inserti128_si256(_mm256_castsi128_si256(r_lo), r_hi, 1))
+                V256::from_raw(_mm256_inserti128_si256(
+                    _mm256_castsi128_si256(r_lo),
+                    r_hi,
+                    1,
+                ))
             } else {
                 let mut b_lo = [0u8; 16];
                 let mut b_hi = [0u8; 16];
@@ -5174,7 +5712,11 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
                 super::crypto_soft::aes_inv_mix_columns_block(&mut b_hi);
                 let v_lo = _mm_loadu_si128(b_lo.as_ptr().cast());
                 let v_hi = _mm_loadu_si128(b_hi.as_ptr().cast());
-                V256::from_raw(_mm256_inserti128_si256(_mm256_castsi128_si256(v_lo), v_hi, 1))
+                V256::from_raw(_mm256_inserti128_si256(
+                    _mm256_castsi128_si256(v_lo),
+                    v_hi,
+                    1,
+                ))
             }
         }
     }

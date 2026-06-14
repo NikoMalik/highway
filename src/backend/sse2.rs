@@ -10,10 +10,12 @@
 use core::arch::x86_64::*;
 use core::marker::PhantomData;
 
-use crate::lane::{FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane};
+use crate::lane::{
+    FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane,
+};
 use crate::ops::{
-    SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdFloat, SimdMask, SimdMemory,
-    SimdReduce, SimdShuffle,
+    SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdFloat,
+    SimdMask, SimdMemory, SimdReduce, SimdShuffle,
 };
 use crate::simd::{self, Simd};
 use crate::{A16, Aligned};
@@ -181,7 +183,12 @@ unsafe impl SimdCore for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn insert_lane<T: Lane>(self, v: V128<T>, index: usize, value: T) -> V128<T> {
+    unsafe fn insert_lane<T: Lane>(
+        self,
+        v: V128<T>,
+        index: usize,
+        value: T,
+    ) -> V128<T> {
         unsafe {
             let mut arr: Aligned<A16, [u8; 16]> = Aligned::new([0u8; 16]);
             _mm_store_si128(arr.as_mut_ptr().cast(), v.raw);
@@ -201,7 +208,9 @@ unsafe impl SimdCore for Sse2 {
             match T::BYTES {
                 1 => {
                     let b: i8 = core::mem::transmute_copy(&base);
-                    let iota = _mm_set_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+                    let iota = _mm_set_epi8(
+                        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                    );
                     V128::from_raw(_mm_add_epi8(iota, _mm_set1_epi8(b)))
                 }
                 2 => {
@@ -213,7 +222,10 @@ unsafe impl SimdCore for Sse2 {
                     if is_type::<T, f32>() {
                         let b: f32 = core::mem::transmute_copy(&base);
                         let iota = _mm_set_ps(3.0, 2.0, 1.0, 0.0);
-                        V128::from_raw(_mm_castps_si128(_mm_add_ps(iota, _mm_set1_ps(b))))
+                        V128::from_raw(_mm_castps_si128(_mm_add_ps(
+                            iota,
+                            _mm_set1_ps(b),
+                        )))
                     } else {
                         let b: i32 = core::mem::transmute_copy(&base);
                         let iota = _mm_set_epi32(3, 2, 1, 0);
@@ -224,11 +236,17 @@ unsafe impl SimdCore for Sse2 {
                     if is_type::<T, f64>() {
                         let b: f64 = core::mem::transmute_copy(&base);
                         let iota = _mm_set_pd(1.0, 0.0);
-                        V128::from_raw(_mm_castpd_si128(_mm_add_pd(iota, _mm_set1_pd(b))))
+                        V128::from_raw(_mm_castpd_si128(_mm_add_pd(
+                            iota,
+                            _mm_set1_pd(b),
+                        )))
                     } else {
                         let b: i64 = core::mem::transmute_copy(&base);
                         let iota = _mm_set_epi64x(1, 0);
-                        V128::from_raw(_mm_add_epi64(iota, _mm_set_epi64x(b, b)))
+                        V128::from_raw(_mm_add_epi64(
+                            iota,
+                            _mm_set_epi64x(b, b),
+                        ))
                     }
                 }
                 _ => unreachable!(),
@@ -276,7 +294,11 @@ unsafe impl SimdMemory for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn masked_load<T: Lane>(self, mask: M128<T>, ptr: *const T) -> V128<T> {
+    unsafe fn masked_load<T: Lane>(
+        self,
+        mask: M128<T>,
+        ptr: *const T,
+    ) -> V128<T> {
         // Load all lanes (unaligned), then zero out lanes where mask is false.
         unsafe {
             let loaded = self.load_u(ptr);
@@ -285,7 +307,12 @@ unsafe impl SimdMemory for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn blended_store<T: Lane>(self, v: V128<T>, mask: M128<T>, ptr: *mut T) {
+    unsafe fn blended_store<T: Lane>(
+        self,
+        v: V128<T>,
+        mask: M128<T>,
+        ptr: *mut T,
+    ) {
         // Load existing data, blend new values where mask is true, store back.
         unsafe {
             let existing = self.load_u(ptr);
@@ -563,7 +590,11 @@ unsafe impl SimdMemory for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn load_expand<T: Lane>(self, mask: M128<T>, ptr: *const T) -> V128<T> {
+    unsafe fn load_expand<T: Lane>(
+        self,
+        mask: M128<T>,
+        ptr: *const T,
+    ) -> V128<T> {
         // Load and then expand
         unsafe {
             let loaded = self.load_u(ptr);
@@ -586,7 +617,8 @@ unsafe impl SimdArith for Sse2 {
                 2 => _mm_add_epi16(a.raw, b.raw),
                 4 => {
                     // Could be i32/u32 or f32
-                    if core::mem::align_of::<T>() == core::mem::align_of::<f32>()
+                    if core::mem::align_of::<T>()
+                        == core::mem::align_of::<f32>()
                         && core::mem::size_of::<T>() == 4
                         && is_type::<T, f32>()
                     {
@@ -653,7 +685,8 @@ unsafe impl SimdArith for Sse2 {
                     let mask = _mm_set1_epi16(0x00FF);
                     let a_lo = _mm_and_si128(a.raw, mask);
                     let b_lo = _mm_and_si128(b.raw, mask);
-                    let mul_lo = _mm_and_si128(_mm_mullo_epi16(a_lo, b_lo), mask);
+                    let mul_lo =
+                        _mm_and_si128(_mm_mullo_epi16(a_lo, b_lo), mask);
 
                     let a_hi = _mm_srli_epi16(a.raw, 8);
                     let b_hi = _mm_srli_epi16(b.raw, 8);
@@ -708,9 +741,15 @@ unsafe impl SimdArith for Sse2 {
     fn div<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
-                _mm_castps_si128(_mm_div_ps(_mm_castsi128_ps(a.raw), _mm_castsi128_ps(b.raw)))
+                _mm_castps_si128(_mm_div_ps(
+                    _mm_castsi128_ps(a.raw),
+                    _mm_castsi128_ps(b.raw),
+                ))
             } else {
-                _mm_castpd_si128(_mm_div_pd(_mm_castsi128_pd(a.raw), _mm_castsi128_pd(b.raw)))
+                _mm_castpd_si128(_mm_div_pd(
+                    _mm_castsi128_pd(a.raw),
+                    _mm_castsi128_pd(b.raw),
+                ))
             };
             V128::from_raw(raw)
         }
@@ -741,20 +780,26 @@ unsafe impl SimdArith for Sse2 {
                         let sum = _mm_add_epi32(a.raw, b.raw);
                         // Unsigned compare: XOR sign bits to convert to signed compare
                         let sign = _mm_set1_epi32(i32::MIN);
-                        let overflow =
-                            _mm_cmplt_epi32(_mm_xor_si128(sum, sign), _mm_xor_si128(a.raw, sign));
+                        let overflow = _mm_cmplt_epi32(
+                            _mm_xor_si128(sum, sign),
+                            _mm_xor_si128(a.raw, sign),
+                        );
                         _mm_or_si128(sum, overflow) // overflow lanes become 0xFFFFFFFF
                     } else if is_type::<T, i32>() {
                         // Signed i32: overflow if signs(a)==signs(b) but signs(sum)!=signs(a)
                         let sum = _mm_add_epi32(a.raw, b.raw);
                         let sign_a = _mm_srai_epi32(a.raw, 31);
                         // same_sign = ~(a ^ b), signs_differ = a ^ sum
-                        let same_sign =
-                            _mm_andnot_si128(_mm_xor_si128(a.raw, b.raw), _mm_set1_epi32(-1));
-                        let overflow = _mm_and_si128(same_sign, _mm_xor_si128(a.raw, sum));
+                        let same_sign = _mm_andnot_si128(
+                            _mm_xor_si128(a.raw, b.raw),
+                            _mm_set1_epi32(-1),
+                        );
+                        let overflow =
+                            _mm_and_si128(same_sign, _mm_xor_si128(a.raw, sum));
                         let overflow_mask = _mm_srai_epi32(overflow, 31);
                         // Saturated value: if a >= 0, MAX; if a < 0, MIN
-                        let sat_val = _mm_xor_si128(sign_a, _mm_set1_epi32(i32::MAX));
+                        let sat_val =
+                            _mm_xor_si128(sign_a, _mm_set1_epi32(i32::MAX));
                         // Blend: if overflow, use sat_val; else use sum
                         _mm_or_si128(
                             _mm_and_si128(overflow_mask, sat_val),
@@ -778,7 +823,8 @@ unsafe impl SimdArith for Sse2 {
                         let sign_a = _mm_srai_epi32(a.raw, 31);
                         let sign_a = _mm_shuffle_epi32(sign_a, 0xF5); // broadcast bit 31 of each i64
                         // overflow_result = xor(sign_a, MAX) -> positive->MAX, negative->MIN
-                        let overflow_result = _mm_xor_si128(sign_a, _mm_set1_epi64x(i64::MAX));
+                        let overflow_result =
+                            _mm_xor_si128(sign_a, _mm_set1_epi64x(i64::MAX));
                         // if_negative_then_else: use sign bit of overflow_mask as blend mask
                         let mask = _mm_srai_epi32(overflow_mask, 31);
                         let mask = _mm_shuffle_epi32(mask, 0xF5);
@@ -817,8 +863,10 @@ unsafe impl SimdArith for Sse2 {
                         let diff = _mm_sub_epi32(a.raw, b.raw);
                         // Unsigned compare b > a: XOR sign bits
                         let sign = _mm_set1_epi32(i32::MIN);
-                        let underflow =
-                            _mm_cmpgt_epi32(_mm_xor_si128(b.raw, sign), _mm_xor_si128(a.raw, sign));
+                        let underflow = _mm_cmpgt_epi32(
+                            _mm_xor_si128(b.raw, sign),
+                            _mm_xor_si128(a.raw, sign),
+                        );
                         _mm_andnot_si128(underflow, diff) // zero out underflow lanes
                     } else if is_type::<T, i32>() {
                         // Signed i32: overflow if signs(a)!=signs(b) and signs(result)!=signs(a)
@@ -826,9 +874,13 @@ unsafe impl SimdArith for Sse2 {
                         let sign_a = _mm_srai_epi32(a.raw, 31);
                         // diff_sign = a ^ b (different signs makes overflow possible)
                         let diff_signs = _mm_xor_si128(a.raw, b.raw);
-                        let overflow = _mm_and_si128(diff_signs, _mm_xor_si128(a.raw, diff));
+                        let overflow = _mm_and_si128(
+                            diff_signs,
+                            _mm_xor_si128(a.raw, diff),
+                        );
                         let overflow_mask = _mm_srai_epi32(overflow, 31);
-                        let sat_val = _mm_xor_si128(sign_a, _mm_set1_epi32(i32::MAX));
+                        let sat_val =
+                            _mm_xor_si128(sign_a, _mm_set1_epi32(i32::MAX));
                         _mm_or_si128(
                             _mm_and_si128(overflow_mask, sat_val),
                             _mm_andnot_si128(overflow_mask, diff),
@@ -851,7 +903,8 @@ unsafe impl SimdArith for Sse2 {
                         let sign_a = _mm_srai_epi32(a.raw, 31);
                         let sign_a = _mm_shuffle_epi32(sign_a, 0xF5);
                         // overflow_result = xor(sign_a, MAX) -> positive->MAX, negative->MIN
-                        let overflow_result = _mm_xor_si128(sign_a, _mm_set1_epi64x(i64::MAX));
+                        let overflow_result =
+                            _mm_xor_si128(sign_a, _mm_set1_epi64x(i64::MAX));
                         // if_negative_then_else: use sign bit of overflow_mask as blend mask
                         let mask = _mm_srai_epi32(overflow_mask, 31);
                         let mask = _mm_shuffle_epi32(mask, 0xF5);
@@ -885,8 +938,12 @@ unsafe impl SimdArith for Sse2 {
                     1 => {
                         if is_signed::<T>() {
                             // abs(x) = (x ^ (x >> 7)) - (x >> 7)
-                            let shift = _mm_cmpgt_epi8(_mm_setzero_si128(), v.raw);
-                            V128::from_raw(_mm_sub_epi8(_mm_xor_si128(v.raw, shift), shift))
+                            let shift =
+                                _mm_cmpgt_epi8(_mm_setzero_si128(), v.raw);
+                            V128::from_raw(_mm_sub_epi8(
+                                _mm_xor_si128(v.raw, shift),
+                                shift,
+                            ))
                         } else {
                             v
                         }
@@ -894,7 +951,10 @@ unsafe impl SimdArith for Sse2 {
                     2 => {
                         if is_signed::<T>() {
                             let shift = _mm_srai_epi16(v.raw, 15);
-                            V128::from_raw(_mm_sub_epi16(_mm_xor_si128(v.raw, shift), shift))
+                            V128::from_raw(_mm_sub_epi16(
+                                _mm_xor_si128(v.raw, shift),
+                                shift,
+                            ))
                         } else {
                             v
                         }
@@ -902,7 +962,10 @@ unsafe impl SimdArith for Sse2 {
                     4 => {
                         if is_signed::<T>() {
                             let shift = _mm_srai_epi32(v.raw, 31);
-                            V128::from_raw(_mm_sub_epi32(_mm_xor_si128(v.raw, shift), shift))
+                            V128::from_raw(_mm_sub_epi32(
+                                _mm_xor_si128(v.raw, shift),
+                                shift,
+                            ))
                         } else {
                             v
                         }
@@ -910,9 +973,13 @@ unsafe impl SimdArith for Sse2 {
                     8 => {
                         if is_signed::<T>() {
                             // No _mm_srai_epi64 in SSE2; use comparison
-                            let sign = _mm_cmpgt_epi32(_mm_setzero_si128(), v.raw);
+                            let sign =
+                                _mm_cmpgt_epi32(_mm_setzero_si128(), v.raw);
                             let sign = _mm_shuffle_epi32(sign, 0xF5); // replicate high 32 bits
-                            V128::from_raw(_mm_sub_epi64(_mm_xor_si128(v.raw, sign), sign))
+                            V128::from_raw(_mm_sub_epi64(
+                                _mm_xor_si128(v.raw, sign),
+                                sign,
+                            ))
                         } else {
                             v
                         }
@@ -1027,8 +1094,10 @@ unsafe impl SimdArith for Sse2 {
                         _mm_or_si128(hi_even, hi_odd)
                     } else {
                         // i8: sign-extend even bytes via slli+srai
-                        let a_even = _mm_srai_epi16(_mm_slli_epi16(a.raw, 8), 8);
-                        let b_even = _mm_srai_epi16(_mm_slli_epi16(b.raw, 8), 8);
+                        let a_even =
+                            _mm_srai_epi16(_mm_slli_epi16(a.raw, 8), 8);
+                        let b_even =
+                            _mm_srai_epi16(_mm_slli_epi16(b.raw, 8), 8);
                         let prod_even = _mm_mullo_epi16(a_even, b_even);
                         let hi_even = _mm_srli_epi16(prod_even, 8);
                         // Odd bytes: arithmetic shift right by 8
@@ -1074,7 +1143,10 @@ unsafe impl SimdArith for Sse2 {
                         // sign_a is all 1s for negative lanes, 0 for positive
                         let correction_a = _mm_and_si128(sign_a, b.raw);
                         let correction_b = _mm_and_si128(sign_b, a.raw);
-                        _mm_sub_epi32(_mm_sub_epi32(unsigned_hi, correction_a), correction_b)
+                        _mm_sub_epi32(
+                            _mm_sub_epi32(unsigned_hi, correction_a),
+                            correction_b,
+                        )
                     }
                 }
             };
@@ -1095,14 +1167,16 @@ unsafe impl SimdArith for Sse2 {
                         let one = _mm_set1_epi32(1);
                         let a_half = _mm_srli_epi32(a.raw, 1);
                         let b_half = _mm_srli_epi32(b.raw, 1);
-                        let carry = _mm_and_si128(_mm_or_si128(a.raw, b.raw), one);
+                        let carry =
+                            _mm_and_si128(_mm_or_si128(a.raw, b.raw), one);
                         _mm_add_epi32(_mm_add_epi32(a_half, b_half), carry)
                     } else {
                         // u64
                         let one = _mm_set_epi64x(1, 1);
                         let a_half = _mm_srli_epi64(a.raw, 1);
                         let b_half = _mm_srli_epi64(b.raw, 1);
-                        let carry = _mm_and_si128(_mm_or_si128(a.raw, b.raw), one);
+                        let carry =
+                            _mm_and_si128(_mm_or_si128(a.raw, b.raw), one);
                         _mm_add_epi64(_mm_add_epi64(a_half, b_half), carry)
                     }
                 }
@@ -1151,13 +1225,16 @@ unsafe impl SimdArith for Sse2 {
                         V128::from_raw(_mm_mul_epi32(a.raw, b.raw))
                     } else {
                         // i32 -> i64: scalar fallback (no _mm_mul_epi32 in SSE2)
-                        let mut arr_a: Aligned<A16, [i32; 4]> = Aligned::new([0i32; 4]);
-                        let mut arr_b: Aligned<A16, [i32; 4]> = Aligned::new([0i32; 4]);
+                        let mut arr_a: Aligned<A16, [i32; 4]> =
+                            Aligned::new([0i32; 4]);
+                        let mut arr_b: Aligned<A16, [i32; 4]> =
+                            Aligned::new([0i32; 4]);
                         _mm_store_si128(arr_a.as_mut_ptr().cast(), a.raw);
                         _mm_store_si128(arr_b.as_mut_ptr().cast(), b.raw);
                         let r0 = arr_a[0] as i64 * arr_b[0] as i64;
                         let r1 = arr_a[2] as i64 * arr_b[2] as i64;
-                        let out: Aligned<A16, [i64; 2]> = Aligned::new([r0, r1]);
+                        let out: Aligned<A16, [i64; 2]> =
+                            Aligned::new([r0, r1]);
                         V128::from_raw(_mm_load_si128(out.as_ptr().cast()))
                     }
                 }
@@ -1228,13 +1305,16 @@ unsafe impl SimdArith for Sse2 {
                         V128::from_raw(_mm_mul_epu32(a_odd, b_odd))
                     } else {
                         // i32 -> i64: scalar fallback
-                        let mut arr_a: Aligned<A16, [i32; 4]> = Aligned::new([0i32; 4]);
-                        let mut arr_b: Aligned<A16, [i32; 4]> = Aligned::new([0i32; 4]);
+                        let mut arr_a: Aligned<A16, [i32; 4]> =
+                            Aligned::new([0i32; 4]);
+                        let mut arr_b: Aligned<A16, [i32; 4]> =
+                            Aligned::new([0i32; 4]);
                         _mm_store_si128(arr_a.as_mut_ptr().cast(), a.raw);
                         _mm_store_si128(arr_b.as_mut_ptr().cast(), b.raw);
                         let r0 = arr_a[1] as i64 * arr_b[1] as i64;
                         let r1 = arr_a[3] as i64 * arr_b[3] as i64;
-                        let out: Aligned<A16, [i64; 2]> = Aligned::new([r0, r1]);
+                        let out: Aligned<A16, [i64; 2]> =
+                            Aligned::new([r0, r1]);
                         V128::from_raw(_mm_load_si128(out.as_ptr().cast()))
                     }
                 }
@@ -1285,11 +1365,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    fn sat_widen_mul_pairwise_add(
-        self,
-        a: V128<u8>,
-        b: V128<i8>,
-    ) -> V128<i16> {
+    fn sat_widen_mul_pairwise_add(self, a: V128<u8>, b: V128<i8>) -> V128<i16> {
         unsafe {
             if is_x86_feature_detected!("ssse3") {
                 V128::from_raw(_mm_maddubs_epi16(a.raw, b.raw))
@@ -1302,7 +1378,8 @@ unsafe impl SimdArith for Sse2 {
                 let mut result = [0i16; 8];
                 for i in 0..8 {
                     let prod0 = (arr_a[2 * i] as i16) * (arr_b[2 * i] as i16);
-                    let prod1 = (arr_a[2 * i + 1] as i16) * (arr_b[2 * i + 1] as i16);
+                    let prod1 =
+                        (arr_a[2 * i + 1] as i16) * (arr_b[2 * i + 1] as i16);
                     let sum = (prod0 as i32) + (prod1 as i32);
                     result[i] = sum.clamp(-32768, 32767) as i16;
                 }
@@ -1312,11 +1389,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    fn mul_fixed_point_15(
-        self,
-        a: V128<i16>,
-        b: V128<i16>,
-    ) -> V128<i16> {
+    fn mul_fixed_point_15(self, a: V128<i16>, b: V128<i16>) -> V128<i16> {
         unsafe {
             if is_x86_feature_detected!("ssse3") {
                 V128::from_raw(_mm_mulhrs_epi16(a.raw, b.raw))
@@ -1343,7 +1416,9 @@ unsafe impl SimdArith for Sse2 {
         b: V128<i16>,
         sum: V128<i32>,
     ) -> V128<i32> {
-        V128::from_raw(unsafe { _mm_add_epi32(sum.raw, _mm_madd_epi16(a.raw, b.raw)) })
+        V128::from_raw(unsafe {
+            _mm_add_epi32(sum.raw, _mm_madd_epi16(a.raw, b.raw))
+        })
     }
 
     #[inline(always)]
@@ -1357,27 +1432,57 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    fn masked_min_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn masked_min_or<T: Lane>(
+        self,
+        no: V128<T>,
+        mask: M128<T>,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         self.if_then_else(mask, self.min(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_max_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn masked_max_or<T: Lane>(
+        self,
+        no: V128<T>,
+        mask: M128<T>,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         self.if_then_else(mask, self.max(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_add_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn masked_add_or<T: Lane>(
+        self,
+        no: V128<T>,
+        mask: M128<T>,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         self.if_then_else(mask, self.add(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_sub_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn masked_sub_or<T: Lane>(
+        self,
+        no: V128<T>,
+        mask: M128<T>,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         self.if_then_else(mask, self.sub(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_mul_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn masked_mul_or<T: Lane>(
+        self,
+        no: V128<T>,
+        mask: M128<T>,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         self.if_then_else(mask, self.mul(a, b), no)
     }
 }
@@ -1416,7 +1521,10 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn shift_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1436,7 +1544,10 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn shift_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1472,7 +1583,10 @@ unsafe impl SimdBitwise for Sse2 {
                         // Emulate arithmetic shift right for i8
                         let count8 = _mm_cvtsi64_si128(8i64);
                         let count_plus_8 = _mm_cvtsi64_si128((BITS + 8) as i64);
-                        let shifted = _mm_sra_epi16(_mm_sll_epi16(v.raw, count8), count_plus_8);
+                        let shifted = _mm_sra_epi16(
+                            _mm_sll_epi16(v.raw, count8),
+                            count_plus_8,
+                        );
                         let mask = _mm_set1_epi16(0x00FF);
                         let lo = _mm_and_si128(shifted, mask);
                         let hi_shifted = _mm_sra_epi16(v.raw, count);
@@ -1480,7 +1594,8 @@ unsafe impl SimdBitwise for Sse2 {
                         _mm_or_si128(lo, hi)
                     } else {
                         let shifted = _mm_srl_epi16(v.raw, count);
-                        let mask = _mm_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8);
+                        let mask =
+                            _mm_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8);
                         _mm_and_si128(shifted, mask)
                     }
                 }
@@ -1491,7 +1606,10 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn rotate_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let type_bits = (T::BYTES * 8) as u32;
             let right = BITS % type_bits;
@@ -1555,7 +1673,11 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shift_right_same<T: IntegerLane>(self, v: V128<T>, bits: u32) -> V128<T> {
+    fn shift_right_same<T: IntegerLane>(
+        self,
+        v: V128<T>,
+        bits: u32,
+    ) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1591,7 +1713,10 @@ unsafe impl SimdBitwise for Sse2 {
                         // Emulate arithmetic shift right for i8
                         let count8 = _mm_cvtsi64_si128(8i64);
                         let count_plus_8 = _mm_cvtsi64_si128((bits + 8) as i64);
-                        let shifted = _mm_sra_epi16(_mm_sll_epi16(v.raw, count8), count_plus_8);
+                        let shifted = _mm_sra_epi16(
+                            _mm_sll_epi16(v.raw, count8),
+                            count_plus_8,
+                        );
                         let mask = _mm_set1_epi16(0x00FF);
                         let lo = _mm_and_si128(shifted, mask);
                         let hi_shifted = _mm_sra_epi16(v.raw, count);
@@ -1599,7 +1724,8 @@ unsafe impl SimdBitwise for Sse2 {
                         _mm_or_si128(lo, hi)
                     } else {
                         let shifted = _mm_srl_epi16(v.raw, count);
-                        let mask = _mm_set1_epi8((0xFFu8.wrapping_shr(bits)) as i8);
+                        let mask =
+                            _mm_set1_epi8((0xFFu8.wrapping_shr(bits)) as i8);
                         _mm_and_si128(shifted, mask)
                     }
                 }
@@ -1610,7 +1736,10 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V128<T>) -> V128<T> {
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: V128<T>,
+    ) -> V128<T> {
         // Shift the entire 128-bit register left by BYTES bytes, zero-filling from the right.
         // _mm_slli_si128 requires const i32, so we dispatch on BYTES value.
         unsafe {
@@ -1638,7 +1767,10 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V128<T>) -> V128<T> {
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: V128<T>,
+    ) -> V128<T> {
         // Shift the entire 128-bit register right by BYTES bytes, zero-filling from the left.
         // _mm_srli_si128 requires const i32, so we dispatch on BYTES value.
         unsafe {
@@ -1769,8 +1901,10 @@ unsafe impl SimdBitwise for Sse2 {
                 //   if hi32 != 0: result = lzc_u32(hi32)
                 //   else:         result = 32 + lzc_u32(lo32)
                 // lzc32 = [lzc(lo0), lzc(hi0), lzc(lo1), lzc(hi1)]
-                let hi_zero =
-                    _mm_cmpeq_epi32(_mm_and_si128(v.raw, _mm_set_epi32(-1, 0, -1, 0)), zero);
+                let hi_zero = _mm_cmpeq_epi32(
+                    _mm_and_si128(v.raw, _mm_set_epi32(-1, 0, -1, 0)),
+                    zero,
+                );
                 // hi_zero has all-1s in the hi32 slot if hi32 was 0
                 // We want: where hi32==0, lzc_hi=32 (so total = 32 + lzc_lo)
                 //          where hi32!=0, lzc_hi stays as is
@@ -1794,7 +1928,8 @@ unsafe impl SimdBitwise for Sse2 {
                     _mm_andnot_si128(hi_mask, hi_lzc),
                 );
                 // Zero out the upper 32-bit halves of each 64-bit lane
-                let result = _mm_and_si128(selected, _mm_set_epi32(0, -1, 0, -1));
+                let result =
+                    _mm_and_si128(selected, _mm_set_epi32(0, -1, 0, -1));
                 V128::from_raw(result)
             }
         }
@@ -1836,19 +1971,35 @@ unsafe impl SimdBitwise for Sse2 {
                     // [b0, b1, b2, b3] -> [b3, b2, b1, b0]
                     let x = v.raw;
                     let a = _mm_srli_epi32(x, 24);
-                    let b = _mm_and_si128(_mm_srli_epi32(x, 8), _mm_set1_epi32(0x0000FF00));
-                    let c = _mm_and_si128(_mm_slli_epi32(x, 8), _mm_set1_epi32(0x00FF0000));
+                    let b = _mm_and_si128(
+                        _mm_srli_epi32(x, 8),
+                        _mm_set1_epi32(0x0000FF00),
+                    );
+                    let c = _mm_and_si128(
+                        _mm_slli_epi32(x, 8),
+                        _mm_set1_epi32(0x00FF0000),
+                    );
                     let d = _mm_slli_epi32(x, 24);
-                    V128::from_raw(_mm_or_si128(_mm_or_si128(a, b), _mm_or_si128(c, d)))
+                    V128::from_raw(_mm_or_si128(
+                        _mm_or_si128(a, b),
+                        _mm_or_si128(c, d),
+                    ))
                 }
                 _ => {
                     // 64-bit: bswap32 each dword, then swap dword halves within each 64-bit lane.
                     let x = v.raw;
                     let a = _mm_srli_epi32(x, 24);
-                    let b = _mm_and_si128(_mm_srli_epi32(x, 8), _mm_set1_epi32(0x0000FF00));
-                    let c = _mm_and_si128(_mm_slli_epi32(x, 8), _mm_set1_epi32(0x00FF0000));
+                    let b = _mm_and_si128(
+                        _mm_srli_epi32(x, 8),
+                        _mm_set1_epi32(0x0000FF00),
+                    );
+                    let c = _mm_and_si128(
+                        _mm_slli_epi32(x, 8),
+                        _mm_set1_epi32(0x00FF0000),
+                    );
                     let d = _mm_slli_epi32(x, 24);
-                    let bswap32 = _mm_or_si128(_mm_or_si128(a, b), _mm_or_si128(c, d));
+                    let bswap32 =
+                        _mm_or_si128(_mm_or_si128(a, b), _mm_or_si128(c, d));
                     // Swap 32-bit halves within each 64-bit lane: [d0,d1,d2,d3] -> [d1,d0,d3,d2]
                     V128::from_raw(_mm_shuffle_epi32(bswap32, 0xB1))
                 }
@@ -1868,19 +2019,28 @@ unsafe impl SimdBitwise for Sse2 {
             let k55 = _mm_set1_epi8(0x55u8 as i8);
             let shr1 = _mm_srli_epi16(raw, 1);
             let shl1 = _mm_slli_epi16(raw, 1);
-            let step1 = _mm_or_si128(_mm_and_si128(shr1, k55), _mm_andnot_si128(k55, shl1));
+            let step1 = _mm_or_si128(
+                _mm_and_si128(shr1, k55),
+                _mm_andnot_si128(k55, shl1),
+            );
 
             // Step 2: swap adjacent 2-bit groups
             let k33 = _mm_set1_epi8(0x33u8 as i8);
             let shr2 = _mm_srli_epi16(step1, 2);
             let shl2 = _mm_slli_epi16(step1, 2);
-            let step2 = _mm_or_si128(_mm_and_si128(shr2, k33), _mm_andnot_si128(k33, shl2));
+            let step2 = _mm_or_si128(
+                _mm_and_si128(shr2, k33),
+                _mm_andnot_si128(k33, shl2),
+            );
 
             // Step 3: swap nibbles
             let k0f = _mm_set1_epi8(0x0Fu8 as i8);
             let shr4 = _mm_srli_epi16(step2, 4);
             let shl4 = _mm_slli_epi16(step2, 4);
-            let reversed_u8 = _mm_or_si128(_mm_and_si128(shr4, k0f), _mm_andnot_si128(k0f, shl4));
+            let reversed_u8 = _mm_or_si128(
+                _mm_and_si128(shr4, k0f),
+                _mm_andnot_si128(k0f, shl4),
+            );
 
             if T::BYTES == 1 {
                 // u8: bit-reversed bytes are the final result.
@@ -1894,11 +2054,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shl<T: IntegerLane>(
-        self,
-        v: V128<T>,
-        bits: V128<T>,
-    ) -> V128<T> {
+    fn shl<T: IntegerLane>(self, v: V128<T>, bits: V128<T>) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let mut arr_v = [0u8; 16];
@@ -1915,8 +2071,10 @@ unsafe impl SimdBitwise for Sse2 {
                         result[off] = if shift >= 8 { 0 } else { val << shift };
                     }
                     2 => {
-                        let val = u16::from_le_bytes([arr_v[off], arr_v[off + 1]]);
-                        let shift = u16::from_le_bytes([arr_b[off], arr_b[off + 1]]);
+                        let val =
+                            u16::from_le_bytes([arr_v[off], arr_v[off + 1]]);
+                        let shift =
+                            u16::from_le_bytes([arr_b[off], arr_b[off + 1]]);
                         let r = if shift >= 16 { 0 } else { val << shift };
                         let bytes = r.to_le_bytes();
                         result[off] = bytes[0];
@@ -1924,10 +2082,16 @@ unsafe impl SimdBitwise for Sse2 {
                     }
                     4 => {
                         let val = u32::from_le_bytes([
-                            arr_v[off], arr_v[off + 1], arr_v[off + 2], arr_v[off + 3],
+                            arr_v[off],
+                            arr_v[off + 1],
+                            arr_v[off + 2],
+                            arr_v[off + 3],
                         ]);
                         let shift = u32::from_le_bytes([
-                            arr_b[off], arr_b[off + 1], arr_b[off + 2], arr_b[off + 3],
+                            arr_b[off],
+                            arr_b[off + 1],
+                            arr_b[off + 2],
+                            arr_b[off + 3],
                         ]);
                         let r = if shift >= 32 { 0 } else { val << shift };
                         let bytes = r.to_le_bytes();
@@ -1935,12 +2099,24 @@ unsafe impl SimdBitwise for Sse2 {
                     }
                     8 => {
                         let val = u64::from_le_bytes([
-                            arr_v[off], arr_v[off + 1], arr_v[off + 2], arr_v[off + 3],
-                            arr_v[off + 4], arr_v[off + 5], arr_v[off + 6], arr_v[off + 7],
+                            arr_v[off],
+                            arr_v[off + 1],
+                            arr_v[off + 2],
+                            arr_v[off + 3],
+                            arr_v[off + 4],
+                            arr_v[off + 5],
+                            arr_v[off + 6],
+                            arr_v[off + 7],
                         ]);
                         let shift = u64::from_le_bytes([
-                            arr_b[off], arr_b[off + 1], arr_b[off + 2], arr_b[off + 3],
-                            arr_b[off + 4], arr_b[off + 5], arr_b[off + 6], arr_b[off + 7],
+                            arr_b[off],
+                            arr_b[off + 1],
+                            arr_b[off + 2],
+                            arr_b[off + 3],
+                            arr_b[off + 4],
+                            arr_b[off + 5],
+                            arr_b[off + 6],
+                            arr_b[off + 7],
                         ]);
                         let r = if shift >= 64 { 0 } else { val << shift };
                         let bytes = r.to_le_bytes();
@@ -1954,11 +2130,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn shr<T: IntegerLane>(
-        self,
-        v: V128<T>,
-        bits: V128<T>,
-    ) -> V128<T> {
+    fn shr<T: IntegerLane>(self, v: V128<T>, bits: V128<T>) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let mut arr_v = [0u8; 16];
@@ -1973,19 +2145,29 @@ unsafe impl SimdBitwise for Sse2 {
                         let shift = arr_b[off];
                         if is_signed::<T>() {
                             let val = arr_v[off] as i8;
-                            let r = if shift >= 8 { val >> 7 } else { val >> shift };
+                            let r = if shift >= 8 {
+                                val >> 7
+                            } else {
+                                val >> shift
+                            };
                             result[off] = r as u8;
                         } else {
                             let val = arr_v[off];
-                            result[off] = if shift >= 8 { 0 } else { val >> shift };
+                            result[off] =
+                                if shift >= 8 { 0 } else { val >> shift };
                         }
                     }
                     2 => {
                         let val_bytes = [arr_v[off], arr_v[off + 1]];
-                        let shift = u16::from_le_bytes([arr_b[off], arr_b[off + 1]]);
+                        let shift =
+                            u16::from_le_bytes([arr_b[off], arr_b[off + 1]]);
                         let r = if is_signed::<T>() {
                             let val = i16::from_le_bytes(val_bytes);
-                            let r = if shift >= 16 { val >> 15 } else { val >> shift };
+                            let r = if shift >= 16 {
+                                val >> 15
+                            } else {
+                                val >> shift
+                            };
                             (r as u16).to_le_bytes()
                         } else {
                             let val = u16::from_le_bytes(val_bytes);
@@ -1997,14 +2179,24 @@ unsafe impl SimdBitwise for Sse2 {
                     }
                     4 => {
                         let val_bytes = [
-                            arr_v[off], arr_v[off + 1], arr_v[off + 2], arr_v[off + 3],
+                            arr_v[off],
+                            arr_v[off + 1],
+                            arr_v[off + 2],
+                            arr_v[off + 3],
                         ];
                         let shift = u32::from_le_bytes([
-                            arr_b[off], arr_b[off + 1], arr_b[off + 2], arr_b[off + 3],
+                            arr_b[off],
+                            arr_b[off + 1],
+                            arr_b[off + 2],
+                            arr_b[off + 3],
                         ]);
                         let r = if is_signed::<T>() {
                             let val = i32::from_le_bytes(val_bytes);
-                            let r = if shift >= 32 { val >> 31 } else { val >> shift };
+                            let r = if shift >= 32 {
+                                val >> 31
+                            } else {
+                                val >> shift
+                            };
                             (r as u32).to_le_bytes()
                         } else {
                             let val = u32::from_le_bytes(val_bytes);
@@ -2015,16 +2207,32 @@ unsafe impl SimdBitwise for Sse2 {
                     }
                     8 => {
                         let val_bytes = [
-                            arr_v[off], arr_v[off + 1], arr_v[off + 2], arr_v[off + 3],
-                            arr_v[off + 4], arr_v[off + 5], arr_v[off + 6], arr_v[off + 7],
+                            arr_v[off],
+                            arr_v[off + 1],
+                            arr_v[off + 2],
+                            arr_v[off + 3],
+                            arr_v[off + 4],
+                            arr_v[off + 5],
+                            arr_v[off + 6],
+                            arr_v[off + 7],
                         ];
                         let shift = u64::from_le_bytes([
-                            arr_b[off], arr_b[off + 1], arr_b[off + 2], arr_b[off + 3],
-                            arr_b[off + 4], arr_b[off + 5], arr_b[off + 6], arr_b[off + 7],
+                            arr_b[off],
+                            arr_b[off + 1],
+                            arr_b[off + 2],
+                            arr_b[off + 3],
+                            arr_b[off + 4],
+                            arr_b[off + 5],
+                            arr_b[off + 6],
+                            arr_b[off + 7],
                         ]);
                         let r = if is_signed::<T>() {
                             let val = i64::from_le_bytes(val_bytes);
-                            let r = if shift >= 64 { val >> 63 } else { val >> shift };
+                            let r = if shift >= 64 {
+                                val >> 63
+                            } else {
+                                val >> shift
+                            };
                             (r as u64).to_le_bytes()
                         } else {
                             let val = u64::from_le_bytes(val_bytes);
@@ -2059,26 +2267,60 @@ unsafe impl SimdBitwise for Sse2 {
                         result[offset] = r;
                     }
                     2 => {
-                        let va = u16::from_le_bytes([arr_a[offset], arr_a[offset + 1]]);
-                        let vb = u16::from_le_bytes([arr_b[offset], arr_b[offset + 1]]) & 15;
+                        let va = u16::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                        ]);
+                        let vb = u16::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                        ]) & 15;
                         let r = va.rotate_right(vb as u32);
                         let rb = r.to_le_bytes();
                         result[offset] = rb[0];
                         result[offset + 1] = rb[1];
                     }
                     4 => {
-                        let va = u32::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3]]);
-                        let vb = u32::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3]]) & 31;
+                        let va = u32::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                        ]);
+                        let vb = u32::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                        ]) & 31;
                         let r = va.rotate_right(vb);
                         let rb = r.to_le_bytes();
-                        result[offset..offset+4].copy_from_slice(&rb);
+                        result[offset..offset + 4].copy_from_slice(&rb);
                     }
                     8 => {
-                        let va = u64::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3], arr_a[offset+4], arr_a[offset+5], arr_a[offset+6], arr_a[offset+7]]);
-                        let vb = u64::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3], arr_b[offset+4], arr_b[offset+5], arr_b[offset+6], arr_b[offset+7]]) & 63;
+                        let va = u64::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                            arr_a[offset + 4],
+                            arr_a[offset + 5],
+                            arr_a[offset + 6],
+                            arr_a[offset + 7],
+                        ]);
+                        let vb = u64::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                            arr_b[offset + 4],
+                            arr_b[offset + 5],
+                            arr_b[offset + 6],
+                            arr_b[offset + 7],
+                        ]) & 63;
                         let r = va.rotate_right(vb as u32);
                         let rb = r.to_le_bytes();
-                        result[offset..offset+8].copy_from_slice(&rb);
+                        result[offset..offset + 8].copy_from_slice(&rb);
                     }
                     _ => unreachable!(),
                 }
@@ -2105,21 +2347,58 @@ unsafe impl SimdBitwise for Sse2 {
                         result[offset] = va.rotate_left(vb as u32);
                     }
                     2 => {
-                        let va = u16::from_le_bytes([arr_a[offset], arr_a[offset + 1]]);
-                        let vb = u16::from_le_bytes([arr_b[offset], arr_b[offset + 1]]) & 15;
+                        let va = u16::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                        ]);
+                        let vb = u16::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                        ]) & 15;
                         let rb = va.rotate_left(vb as u32).to_le_bytes();
                         result[offset] = rb[0];
                         result[offset + 1] = rb[1];
                     }
                     4 => {
-                        let va = u32::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3]]);
-                        let vb = u32::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3]]) & 31;
-                        result[offset..offset+4].copy_from_slice(&va.rotate_left(vb).to_le_bytes());
+                        let va = u32::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                        ]);
+                        let vb = u32::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                        ]) & 31;
+                        result[offset..offset + 4]
+                            .copy_from_slice(&va.rotate_left(vb).to_le_bytes());
                     }
                     8 => {
-                        let va = u64::from_le_bytes([arr_a[offset], arr_a[offset+1], arr_a[offset+2], arr_a[offset+3], arr_a[offset+4], arr_a[offset+5], arr_a[offset+6], arr_a[offset+7]]);
-                        let vb = u64::from_le_bytes([arr_b[offset], arr_b[offset+1], arr_b[offset+2], arr_b[offset+3], arr_b[offset+4], arr_b[offset+5], arr_b[offset+6], arr_b[offset+7]]) & 63;
-                        result[offset..offset+8].copy_from_slice(&va.rotate_left(vb as u32).to_le_bytes());
+                        let va = u64::from_le_bytes([
+                            arr_a[offset],
+                            arr_a[offset + 1],
+                            arr_a[offset + 2],
+                            arr_a[offset + 3],
+                            arr_a[offset + 4],
+                            arr_a[offset + 5],
+                            arr_a[offset + 6],
+                            arr_a[offset + 7],
+                        ]);
+                        let vb = u64::from_le_bytes([
+                            arr_b[offset],
+                            arr_b[offset + 1],
+                            arr_b[offset + 2],
+                            arr_b[offset + 3],
+                            arr_b[offset + 4],
+                            arr_b[offset + 5],
+                            arr_b[offset + 6],
+                            arr_b[offset + 7],
+                        ]) & 63;
+                        result[offset..offset + 8].copy_from_slice(
+                            &va.rotate_left(vb as u32).to_le_bytes(),
+                        );
                     }
                     _ => unreachable!(),
                 }
@@ -2129,7 +2408,10 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn rotate_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let mut result = [0u8; 16];
@@ -2140,18 +2422,37 @@ unsafe impl SimdBitwise for Sse2 {
                 match T::BYTES {
                     1 => result[offset] = arr[offset].rotate_left(BITS),
                     2 => {
-                        let va = u16::from_le_bytes([arr[offset], arr[offset + 1]]);
+                        let va =
+                            u16::from_le_bytes([arr[offset], arr[offset + 1]]);
                         let rb = va.rotate_left(BITS).to_le_bytes();
                         result[offset] = rb[0];
                         result[offset + 1] = rb[1];
                     }
                     4 => {
-                        let va = u32::from_le_bytes([arr[offset], arr[offset+1], arr[offset+2], arr[offset+3]]);
-                        result[offset..offset+4].copy_from_slice(&va.rotate_left(BITS).to_le_bytes());
+                        let va = u32::from_le_bytes([
+                            arr[offset],
+                            arr[offset + 1],
+                            arr[offset + 2],
+                            arr[offset + 3],
+                        ]);
+                        result[offset..offset + 4].copy_from_slice(
+                            &va.rotate_left(BITS).to_le_bytes(),
+                        );
                     }
                     8 => {
-                        let va = u64::from_le_bytes([arr[offset], arr[offset+1], arr[offset+2], arr[offset+3], arr[offset+4], arr[offset+5], arr[offset+6], arr[offset+7]]);
-                        result[offset..offset+8].copy_from_slice(&va.rotate_left(BITS).to_le_bytes());
+                        let va = u64::from_le_bytes([
+                            arr[offset],
+                            arr[offset + 1],
+                            arr[offset + 2],
+                            arr[offset + 3],
+                            arr[offset + 4],
+                            arr[offset + 5],
+                            arr[offset + 6],
+                            arr[offset + 7],
+                        ]);
+                        result[offset..offset + 8].copy_from_slice(
+                            &va.rotate_left(BITS).to_le_bytes(),
+                        );
                     }
                     _ => unreachable!(),
                 }
@@ -2395,7 +2696,9 @@ unsafe impl SimdMask for Sse2 {
             // Since all values are small positive integers, signed comparison works.
             match T::BYTES {
                 1 => {
-                    let iota = _mm_set_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+                    let iota = _mm_set_epi8(
+                        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                    );
                     let threshold = _mm_set1_epi8(n as i8);
                     // iota < threshold <-> cmpgt(threshold, iota)
                     M128::from_raw(_mm_cmpgt_epi8(threshold, iota))
@@ -2428,8 +2731,10 @@ unsafe impl SimdMask for Sse2 {
             match T::BYTES {
                 1 => _mm_movemask_epi8(m.raw).count_ones() as usize,
                 2 => (_mm_movemask_epi8(m.raw).count_ones() as usize) / 2,
-                4 => _mm_movemask_ps(_mm_castsi128_ps(m.raw)).count_ones() as usize,
-                8 => _mm_movemask_pd(_mm_castsi128_pd(m.raw)).count_ones() as usize,
+                4 => _mm_movemask_ps(_mm_castsi128_ps(m.raw)).count_ones()
+                    as usize,
+                8 => _mm_movemask_pd(_mm_castsi128_pd(m.raw)).count_ones()
+                    as usize,
                 _ => unreachable!(),
             }
         }
@@ -2476,7 +2781,12 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    fn if_then_else<T: Lane>(self, mask: M128<T>, yes: V128<T>, no: V128<T>) -> V128<T> {
+    fn if_then_else<T: Lane>(
+        self,
+        mask: M128<T>,
+        yes: V128<T>,
+        no: V128<T>,
+    ) -> V128<T> {
         unsafe {
             // (mask & yes) | (~mask & no)
             V128::from_raw(_mm_or_si128(
@@ -2487,7 +2797,11 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    fn if_then_else_zero<T: Lane>(self, mask: M128<T>, yes: V128<T>) -> V128<T> {
+    fn if_then_else_zero<T: Lane>(
+        self,
+        mask: M128<T>,
+        yes: V128<T>,
+    ) -> V128<T> {
         V128::from_raw(unsafe { _mm_and_si128(mask.raw, yes.raw) })
     }
 
@@ -2612,16 +2926,28 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    fn if_negative_then_else<T: Lane>(self, v: V128<T>, yes: V128<T>, no: V128<T>) -> V128<T> {
+    fn if_negative_then_else<T: Lane>(
+        self,
+        v: V128<T>,
+        yes: V128<T>,
+        no: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let sign = sse2_sign_mask::<T>(v.raw);
-            let r = _mm_or_si128(_mm_and_si128(sign, yes.raw), _mm_andnot_si128(sign, no.raw));
+            let r = _mm_or_si128(
+                _mm_and_si128(sign, yes.raw),
+                _mm_andnot_si128(sign, no.raw),
+            );
             V128::from_raw(r)
         }
     }
 
     #[inline(always)]
-    fn if_negative_then_else_zero<T: Lane>(self, v: V128<T>, yes: V128<T>) -> V128<T> {
+    fn if_negative_then_else_zero<T: Lane>(
+        self,
+        v: V128<T>,
+        yes: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let sign = sse2_sign_mask::<T>(v.raw);
             V128::from_raw(_mm_and_si128(sign, yes.raw))
@@ -2629,7 +2955,11 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    fn if_negative_then_zero_else<T: Lane>(self, v: V128<T>, no: V128<T>) -> V128<T> {
+    fn if_negative_then_zero_else<T: Lane>(
+        self,
+        v: V128<T>,
+        no: V128<T>,
+    ) -> V128<T> {
         unsafe {
             let sign = sse2_sign_mask::<T>(v.raw);
             V128::from_raw(_mm_andnot_si128(sign, no.raw))
@@ -2735,7 +3065,8 @@ unsafe impl SimdConvert for Sse2 {
                         let clamped = _mm_min_epu8(v.raw, max_i32);
                         let bias32 = _mm_set1_epi32(0x8000u32 as i32);
                         let biased = _mm_sub_epi32(clamped, bias32);
-                        let packed = _mm_packs_epi32(biased, _mm_setzero_si128());
+                        let packed =
+                            _mm_packs_epi32(biased, _mm_setzero_si128());
                         let bias16 = _mm_set1_epi16(0x8000u16 as i16);
                         _mm_add_epi16(packed, bias16)
                     }
@@ -2745,14 +3076,20 @@ unsafe impl SimdConvert for Sse2 {
                         // f64 -> f32
                         _mm_castps_si128(_mm_cvtpd_ps(_mm_castsi128_pd(v.raw)))
                     } else if is_signed::<W>() {
-                        let min_val = V128::<W>::from_raw(_mm_set1_epi64x(i32::MIN as i64));
-                        let max_val = V128::<W>::from_raw(_mm_set1_epi64x(i32::MAX as i64));
+                        let min_val = V128::<W>::from_raw(_mm_set1_epi64x(
+                            i32::MIN as i64,
+                        ));
+                        let max_val = V128::<W>::from_raw(_mm_set1_epi64x(
+                            i32::MAX as i64,
+                        ));
                         let clamped = self.min(self.max(v, min_val), max_val);
                         // Pack low 32-bit of each 64-bit lane: shuffle(0x08) -> [lo0, lo1, ?, ?]
                         let packed = _mm_shuffle_epi32(clamped.raw, 0x08);
                         _mm_unpacklo_epi64(packed, _mm_setzero_si128())
                     } else {
-                        let max_val = V128::<W>::from_raw(_mm_set1_epi64x(u32::MAX as i64));
+                        let max_val = V128::<W>::from_raw(_mm_set1_epi64x(
+                            u32::MAX as i64,
+                        ));
                         let clamped = self.min(v, max_val);
                         let packed = _mm_shuffle_epi32(clamped.raw, 0x08);
                         _mm_unpacklo_epi64(packed, _mm_setzero_si128())
@@ -2779,7 +3116,8 @@ unsafe impl SimdConvert for Sse2 {
                     _mm_set1_pd(9.223372036854776e18), // >= i64::MAX as f64
                 ));
                 let i0 = _mm_cvttsd_si64(v_pd);
-                let i1 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(v.raw, 8)));
+                let i1 =
+                    _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(v.raw, 8)));
                 let converted = _mm_set_epi64x(i1, i0);
                 // Where overflow: i64::MAX; else: converted
                 let max_val = _mm_set1_epi64x(i64::MAX);
@@ -2803,8 +3141,13 @@ unsafe impl SimdConvert for Sse2 {
                 let k84_63 = _mm_set1_epi64x(0x4530000080000000u64 as i64);
                 // Extract upper 32 bits of each i64, XOR with magic to get f64 representation
                 let v_upper = _mm_castpd_si128(_mm_sub_pd(
-                    _mm_castsi128_pd(_mm_xor_si128(_mm_srli_epi64(v.raw, 32), k84_63)),
-                    _mm_castsi128_pd(_mm_set1_epi64x(0x4530000080100000u64 as i64)),
+                    _mm_castsi128_pd(_mm_xor_si128(
+                        _mm_srli_epi64(v.raw, 32),
+                        k84_63,
+                    )),
+                    _mm_castsi128_pd(_mm_set1_epi64x(
+                        0x4530000080100000u64 as i64,
+                    )),
                 ));
                 // Build lower f64: OddEven(k52, bitcast_u32(v))
                 // k52 in odd u32 positions (high u32 of each u64), v's low u32 in even positions
@@ -2854,7 +3197,11 @@ unsafe impl SimdConvert for Sse2 {
                 let mut arr = [0u8; 16];
                 _mm_storeu_si128(arr.as_mut_ptr().cast(), v.raw);
                 let mut result = [0u8; 16];
-                core::ptr::copy_nonoverlapping(arr.as_ptr(), result.as_mut_ptr(), 4);
+                core::ptr::copy_nonoverlapping(
+                    arr.as_ptr(),
+                    result.as_mut_ptr(),
+                    4,
+                );
                 core::ptr::copy_nonoverlapping(
                     arr.as_ptr().add(8),
                     result.as_mut_ptr().add(4),
@@ -2917,14 +3264,24 @@ unsafe impl SimdConvert for Sse2 {
                 let mut result = [0u32; 4];
                 if is_type::<W, u64>() {
                     let vals = [
-                        arr_lo[0] as u64, arr_lo[1] as u64,
-                        arr_hi[0] as u64, arr_hi[1] as u64,
+                        arr_lo[0] as u64,
+                        arr_lo[1] as u64,
+                        arr_hi[0] as u64,
+                        arr_hi[1] as u64,
                     ];
                     for i in 0..4 {
-                        result[i] = if vals[i] > u32::MAX as u64 { u32::MAX } else { vals[i] as u32 };
+                        result[i] = if vals[i] > u32::MAX as u64 {
+                            u32::MAX
+                        } else {
+                            vals[i] as u32
+                        };
                     }
                 } else if is_type::<W, i64>() {
-                    for (i, &val) in [arr_lo[0], arr_lo[1], arr_hi[0], arr_hi[1]].iter().enumerate() {
+                    for (i, &val) in
+                        [arr_lo[0], arr_lo[1], arr_hi[0], arr_hi[1]]
+                            .iter()
+                            .enumerate()
+                    {
                         result[i] = if val > i32::MAX as i64 {
                             i32::MAX as u32
                         } else if val < i32::MIN as i64 {
@@ -2950,7 +3307,10 @@ unsafe impl SimdConvert for Sse2 {
                 // Clamp >= 2^31 to i32::MAX first to match C++ Highway.
                 let ps = _mm_castsi128_ps(v.raw);
                 let max_f = _mm_set1_ps(2147483520.0f32); // largest f32 < 2^31
-                let overflow = _mm_castps_si128(_mm_cmpge_ps(ps, _mm_set1_ps(2147483648.0f32)));
+                let overflow = _mm_castps_si128(_mm_cmpge_ps(
+                    ps,
+                    _mm_set1_ps(2147483648.0f32),
+                ));
                 let clamped = _mm_castps_si128(_mm_min_ps(ps, max_f));
                 let converted = _mm_cvtps_epi32(_mm_castsi128_ps(clamped));
                 // Where overflow: i32::MAX; else: converted
@@ -2971,7 +3331,9 @@ unsafe impl SimdConvert for Sse2 {
                     _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC,
                 ));
                 let i0 = _mm_cvttsd_si64(_mm_castsi128_pd(rounded));
-                let i1 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(rounded, 8)));
+                let i1 = _mm_cvttsd_si64(_mm_castsi128_pd(_mm_srli_si128(
+                    rounded, 8,
+                )));
                 let converted = _mm_set_epi64x(i1, i0);
                 let max_val = _mm_set1_epi64x(i64::MAX);
                 _mm_or_si128(
@@ -3187,7 +3549,11 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    fn table_lookup_bytes<T: Lane>(self, table: V128<T>, idx: V128<T>) -> V128<T> {
+    fn table_lookup_bytes<T: Lane>(
+        self,
+        table: V128<T>,
+        idx: V128<T>,
+    ) -> V128<T> {
         unsafe {
             // SSE2 doesn't have pshufb; emulate byte-level table lookup
             let mut tbl: Aligned<A16, [u8; 16]> = Aligned::new([0u8; 16]);
@@ -3222,7 +3588,9 @@ unsafe impl SimdShuffle for Sse2 {
             let mut result: Aligned<A16, [u8; 16]> = Aligned::new([0u8; 16]);
             for i in 0..lanes {
                 let idx_offset = i * I::BYTES;
-                let lane_idx = read_lane_bits(&indices, idx_offset, I::BYTES) as usize % lanes;
+                let lane_idx = read_lane_bits(&indices, idx_offset, I::BYTES)
+                    as usize
+                    % lanes;
                 let src_offset = lane_idx * T::BYTES;
                 let dst_offset = i * T::BYTES;
                 result[dst_offset..dst_offset + T::BYTES]
@@ -3270,8 +3638,14 @@ unsafe impl SimdShuffle for Sse2 {
                     // Same as reverse_lane_bytes for u32, using shift+mask.
                     let x = v.raw;
                     let a = _mm_srli_epi32(x, 24);
-                    let b = _mm_and_si128(_mm_srli_epi32(x, 8), _mm_set1_epi32(0x0000FF00));
-                    let c = _mm_and_si128(_mm_slli_epi32(x, 8), _mm_set1_epi32(0x00FF0000));
+                    let b = _mm_and_si128(
+                        _mm_srli_epi32(x, 8),
+                        _mm_set1_epi32(0x0000FF00),
+                    );
+                    let c = _mm_and_si128(
+                        _mm_slli_epi32(x, 8),
+                        _mm_set1_epi32(0x00FF0000),
+                    );
                     let d = _mm_slli_epi32(x, 24);
                     _mm_or_si128(_mm_or_si128(a, b), _mm_or_si128(c, d))
                 }
@@ -3305,10 +3679,17 @@ unsafe impl SimdShuffle for Sse2 {
                     // Step 1: bswap32 within each dword
                     let x = v.raw;
                     let a = _mm_srli_epi32(x, 24);
-                    let b = _mm_and_si128(_mm_srli_epi32(x, 8), _mm_set1_epi32(0x0000FF00));
-                    let c = _mm_and_si128(_mm_slli_epi32(x, 8), _mm_set1_epi32(0x00FF0000));
+                    let b = _mm_and_si128(
+                        _mm_srli_epi32(x, 8),
+                        _mm_set1_epi32(0x0000FF00),
+                    );
+                    let c = _mm_and_si128(
+                        _mm_slli_epi32(x, 8),
+                        _mm_set1_epi32(0x00FF0000),
+                    );
                     let d = _mm_slli_epi32(x, 24);
-                    let bswap32 = _mm_or_si128(_mm_or_si128(a, b), _mm_or_si128(c, d));
+                    let bswap32 =
+                        _mm_or_si128(_mm_or_si128(a, b), _mm_or_si128(c, d));
                     // Step 2: swap 32-bit halves within each 64-bit lane
                     V128::from_raw(_mm_shuffle_epi32(bswap32, 0xB1))
                 }
@@ -3361,7 +3742,9 @@ unsafe impl SimdShuffle for Sse2 {
                     let b_ps = _mm_castsi128_ps(b.raw);
                     // _mm_shuffle_ps(a, b, imm8): selects 2 from a (low), 2 from b (high)
                     // imm8 = 0b10_00_10_00 = 0x88: a[0], a[2], b[0], b[2]
-                    V128::from_raw(_mm_castps_si128(_mm_shuffle_ps(a_ps, b_ps, 0x88)))
+                    V128::from_raw(_mm_castps_si128(_mm_shuffle_ps(
+                        a_ps, b_ps, 0x88,
+                    )))
                 }
                 8 => {
                     // 2 lanes each. Even = lane 0. Result: [a0, b0]
@@ -3405,7 +3788,9 @@ unsafe impl SimdShuffle for Sse2 {
                     let a_ps = _mm_castsi128_ps(a.raw);
                     let b_ps = _mm_castsi128_ps(b.raw);
                     // imm8 = 0b11_01_11_01 = 0xDD: a[1], a[3], b[1], b[3]
-                    V128::from_raw(_mm_castps_si128(_mm_shuffle_ps(a_ps, b_ps, 0xDD)))
+                    V128::from_raw(_mm_castps_si128(_mm_shuffle_ps(
+                        a_ps, b_ps, 0xDD,
+                    )))
                 }
                 8 => {
                     // 2 lanes each. Odd = lane 1. Result: [a1, b1]
@@ -3554,24 +3939,25 @@ unsafe impl SimdShuffle for Sse2 {
             }
             // For 4-byte types (u32/i32/f32), use shuffle_epi32 with 16 mask patterns.
             if T::BYTES == 4 {
-                let mask_bits = _mm_movemask_ps(_mm_castsi128_ps(mask.raw)) as u8;
+                let mask_bits =
+                    _mm_movemask_ps(_mm_castsi128_ps(mask.raw)) as u8;
                 return V128::from_raw(match mask_bits & 0xF {
                     0b0000 => _mm_setzero_si128(),
-                    0b0001 => v.raw,                                   // [e0]
-                    0b0010 => _mm_shuffle_epi32(v.raw, 0x01),          // [e1]
-                    0b0011 => v.raw,                                   // [e0, e1]
-                    0b0100 => _mm_shuffle_epi32(v.raw, 0x02),          // [e2]
-                    0b0101 => _mm_shuffle_epi32(v.raw, 0x08),          // [e0, e2]
-                    0b0110 => _mm_shuffle_epi32(v.raw, 0x09),          // [e1, e2]
-                    0b0111 => v.raw,                                   // [e0, e1, e2]
-                    0b1000 => _mm_shuffle_epi32(v.raw, 0x03),          // [e3]
-                    0b1001 => _mm_shuffle_epi32(v.raw, 0x0C),          // [e0, e3]
-                    0b1010 => _mm_shuffle_epi32(v.raw, 0x0D),          // [e1, e3]
-                    0b1011 => _mm_shuffle_epi32(v.raw, 0x34),          // [e0, e1, e3]
-                    0b1100 => _mm_shuffle_epi32(v.raw, 0x0E),          // [e2, e3]
-                    0b1101 => _mm_shuffle_epi32(v.raw, 0x38),          // [e0, e2, e3]
-                    0b1110 => _mm_shuffle_epi32(v.raw, 0x39),          // [e1, e2, e3]
-                    _      => v.raw,                                   // [e0, e1, e2, e3]
+                    0b0001 => v.raw, // [e0]
+                    0b0010 => _mm_shuffle_epi32(v.raw, 0x01), // [e1]
+                    0b0011 => v.raw, // [e0, e1]
+                    0b0100 => _mm_shuffle_epi32(v.raw, 0x02), // [e2]
+                    0b0101 => _mm_shuffle_epi32(v.raw, 0x08), // [e0, e2]
+                    0b0110 => _mm_shuffle_epi32(v.raw, 0x09), // [e1, e2]
+                    0b0111 => v.raw, // [e0, e1, e2]
+                    0b1000 => _mm_shuffle_epi32(v.raw, 0x03), // [e3]
+                    0b1001 => _mm_shuffle_epi32(v.raw, 0x0C), // [e0, e3]
+                    0b1010 => _mm_shuffle_epi32(v.raw, 0x0D), // [e1, e3]
+                    0b1011 => _mm_shuffle_epi32(v.raw, 0x34), // [e0, e1, e3]
+                    0b1100 => _mm_shuffle_epi32(v.raw, 0x0E), // [e2, e3]
+                    0b1101 => _mm_shuffle_epi32(v.raw, 0x38), // [e0, e2, e3]
+                    0b1110 => _mm_shuffle_epi32(v.raw, 0x39), // [e1, e2, e3]
+                    _ => v.raw,      // [e0, e1, e2, e3]
                 });
             }
             // Scalar fallback for u8/u16/i8/i16 without AVX-512VL.
@@ -3597,7 +3983,12 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn compress_store<T: Lane>(self, v: V128<T>, mask: M128<T>, ptr: *mut T) -> usize {
+    unsafe fn compress_store<T: Lane>(
+        self,
+        v: V128<T>,
+        mask: M128<T>,
+        ptr: *mut T,
+    ) -> usize {
         unsafe {
             let compressed = self.compress(v, mask);
             let count = self.count_true::<T>(mask);
@@ -3617,7 +4008,10 @@ unsafe impl SimdShuffle for Sse2 {
                 }
                 2 => {
                     // Duplicate even u16 lanes: [v0,v0,v2,v2,v4,v4,v6,v6]
-                    let even = _mm_and_si128(v.raw, _mm_set1_epi32(0x0000FFFFu32 as i32));
+                    let even = _mm_and_si128(
+                        v.raw,
+                        _mm_set1_epi32(0x0000FFFFu32 as i32),
+                    );
                     _mm_or_si128(even, _mm_slli_epi32(even, 16))
                 }
                 4 => {
@@ -3665,21 +4059,13 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    fn concat_lower_lower<T: Lane>(
-        self,
-        hi: V128<T>,
-        lo: V128<T>,
-    ) -> V128<T> {
+    fn concat_lower_lower<T: Lane>(self, hi: V128<T>, lo: V128<T>) -> V128<T> {
         // Lower 64 bits of lo in low half, lower 64 bits of hi in high half.
         V128::from_raw(unsafe { _mm_unpacklo_epi64(lo.raw, hi.raw) })
     }
 
     #[inline(always)]
-    fn concat_upper_upper<T: Lane>(
-        self,
-        hi: V128<T>,
-        lo: V128<T>,
-    ) -> V128<T> {
+    fn concat_upper_upper<T: Lane>(self, hi: V128<T>, lo: V128<T>) -> V128<T> {
         // Upper 64 bits of lo in low half, upper 64 bits of hi in high half.
         V128::from_raw(unsafe { _mm_unpackhi_epi64(lo.raw, hi.raw) })
     }
@@ -3814,11 +4200,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    fn odd_even_blocks<T: Lane>(
-        self,
-        _odd: V128<T>,
-        even: V128<T>,
-    ) -> V128<T> {
+    fn odd_even_blocks<T: Lane>(self, _odd: V128<T>, even: V128<T>) -> V128<T> {
         // SSE2: only 1 block (128-bit), block 0 = even.
         even
     }
@@ -3847,7 +4229,11 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn compress_bits<T: Lane>(self, v: V128<T>, bits: *const u8) -> V128<T> {
+    unsafe fn compress_bits<T: Lane>(
+        self,
+        v: V128<T>,
+        bits: *const u8,
+    ) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let byte_val = bits.read();
@@ -3857,20 +4243,30 @@ unsafe impl SimdShuffle for Sse2 {
                 let bit_idx = i;
                 let byte_idx = bit_idx / 8;
                 let bit_in_byte = bit_idx % 8;
-                let b = if byte_idx == 0 { byte_val } else { bits.add(byte_idx).read() };
+                let b = if byte_idx == 0 {
+                    byte_val
+                } else {
+                    bits.add(byte_idx).read()
+                };
                 if (b >> bit_in_byte) & 1 != 0 {
                     for k in 0..T::BYTES {
                         mask_arr[i * T::BYTES + k] = 0xFF;
                     }
                 }
             }
-            let mask = M128::from_raw(_mm_loadu_si128(mask_arr.as_ptr().cast()));
+            let mask =
+                M128::from_raw(_mm_loadu_si128(mask_arr.as_ptr().cast()));
             self.compress(v, mask)
         }
     }
 
     #[inline(always)]
-    unsafe fn compress_bits_store<T: Lane>(self, v: V128<T>, bits: *const u8, ptr: *mut T) -> usize {
+    unsafe fn compress_bits_store<T: Lane>(
+        self,
+        v: V128<T>,
+        bits: *const u8,
+        ptr: *mut T,
+    ) -> usize {
         unsafe {
             let lanes = 16 / T::BYTES;
             let byte_val = bits.read();
@@ -3879,14 +4275,19 @@ unsafe impl SimdShuffle for Sse2 {
                 let bit_idx = i;
                 let byte_idx = bit_idx / 8;
                 let bit_in_byte = bit_idx % 8;
-                let b = if byte_idx == 0 { byte_val } else { bits.add(byte_idx).read() };
+                let b = if byte_idx == 0 {
+                    byte_val
+                } else {
+                    bits.add(byte_idx).read()
+                };
                 if (b >> bit_in_byte) & 1 != 0 {
                     for k in 0..T::BYTES {
                         mask_arr[i * T::BYTES + k] = 0xFF;
                     }
                 }
             }
-            let mask = M128::from_raw(_mm_loadu_si128(mask_arr.as_ptr().cast()));
+            let mask =
+                M128::from_raw(_mm_loadu_si128(mask_arr.as_ptr().cast()));
             // compress_store recomputes and returns the written count.
             self.compress_store(v, mask, ptr)
         }
@@ -3911,7 +4312,11 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    fn insert_block<T: Lane, const IDX: usize>(self, _v: V128<T>, blk: V128<T>) -> V128<T> {
+    fn insert_block<T: Lane, const IDX: usize>(
+        self,
+        _v: V128<T>,
+        blk: V128<T>,
+    ) -> V128<T> {
         // SSE2: single block, IDX must be 0
         blk
     }
@@ -3923,13 +4328,21 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    fn interleave_whole_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_whole_lower<T: Lane>(
+        self,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         // SSE2: single block, same as interleave_lower
         self.interleave_lower(a, b)
     }
 
     #[inline(always)]
-    fn interleave_whole_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_whole_upper<T: Lane>(
+        self,
+        a: V128<T>,
+        b: V128<T>,
+    ) -> V128<T> {
         // SSE2: single block, same as interleave_upper
         self.interleave_upper(a, b)
     }
@@ -4010,9 +4423,26 @@ unsafe impl SimdShuffle for Sse2 {
                 let idx_off = i * I::BYTES;
                 let lane_idx: usize = match I::BYTES {
                     1 => arr_idx[idx_off] as usize,
-                    2 => u16::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1]]) as usize,
-                    4 => u32::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3]]) as usize,
-                    _ => u64::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3], arr_idx[idx_off+4], arr_idx[idx_off+5], arr_idx[idx_off+6], arr_idx[idx_off+7]]) as usize,
+                    2 => u16::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                    ]) as usize,
+                    4 => u32::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                    ]) as usize,
+                    _ => u64::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                        arr_idx[idx_off + 4],
+                        arr_idx[idx_off + 5],
+                        arr_idx[idx_off + 6],
+                        arr_idx[idx_off + 7],
+                    ]) as usize,
                 };
                 let src_off = if lane_idx < lanes {
                     lane_idx * T::BYTES
@@ -4022,7 +4452,8 @@ unsafe impl SimdShuffle for Sse2 {
                 let src = if lane_idx < lanes { &arr_a } else { &arr_b };
                 let dst_off = i * T::BYTES;
                 if lane_idx < 2 * lanes {
-                    result[dst_off..dst_off+T::BYTES].copy_from_slice(&src[src_off..src_off+T::BYTES]);
+                    result[dst_off..dst_off + T::BYTES]
+                        .copy_from_slice(&src[src_off..src_off + T::BYTES]);
                 }
             }
             V128::from_raw(_mm_loadu_si128(result.as_ptr().cast()))
@@ -4047,9 +4478,26 @@ unsafe impl SimdShuffle for Sse2 {
                 // Read index as signed to check high bit
                 let lane_idx_signed: i64 = match I::BYTES {
                     1 => arr_idx[idx_off] as i8 as i64,
-                    2 => i16::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1]]) as i64,
-                    4 => i32::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3]]) as i64,
-                    _ => i64::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3], arr_idx[idx_off+4], arr_idx[idx_off+5], arr_idx[idx_off+6], arr_idx[idx_off+7]]),
+                    2 => i16::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                    ]) as i64,
+                    4 => i32::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                    ]) as i64,
+                    _ => i64::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                        arr_idx[idx_off + 4],
+                        arr_idx[idx_off + 5],
+                        arr_idx[idx_off + 6],
+                        arr_idx[idx_off + 7],
+                    ]),
                 };
                 let dst_off = i * T::BYTES;
                 if lane_idx_signed < 0 {
@@ -4061,7 +4509,9 @@ unsafe impl SimdShuffle for Sse2 {
                     let lane_idx = lane_idx_signed as usize;
                     if lane_idx < lanes {
                         let src_off = lane_idx * T::BYTES;
-                        result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_v[src_off..src_off+T::BYTES]);
+                        result[dst_off..dst_off + T::BYTES].copy_from_slice(
+                            &arr_v[src_off..src_off + T::BYTES],
+                        );
                     } else {
                         for k in 0..T::BYTES {
                             result[dst_off + k] = 0;
@@ -4154,8 +4604,10 @@ unsafe impl SimdReduce for Sse2 {
                         f = _mm_min_ss(f, _mm_shuffle_ps(f, f, 1));
                         r = V128::from_raw(_mm_castps_si128(f));
                     } else {
-                        r = self.min(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
-                        r = self.min(r, V128::from_raw(_mm_srli_si128::<4>(r.raw)));
+                        r = self
+                            .min(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
+                        r = self
+                            .min(r, V128::from_raw(_mm_srli_si128::<4>(r.raw)));
                     }
                 }
                 8 => {
@@ -4164,7 +4616,8 @@ unsafe impl SimdReduce for Sse2 {
                         let hi = _mm_shuffle_pd(f, f, 1);
                         r = V128::from_raw(_mm_castpd_si128(_mm_min_pd(f, hi)));
                     } else {
-                        r = self.min(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
+                        r = self
+                            .min(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
                     }
                 }
                 _ => unreachable!(),
@@ -4196,8 +4649,10 @@ unsafe impl SimdReduce for Sse2 {
                         f = _mm_max_ss(f, _mm_shuffle_ps(f, f, 1));
                         r = V128::from_raw(_mm_castps_si128(f));
                     } else {
-                        r = self.max(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
-                        r = self.max(r, V128::from_raw(_mm_srli_si128::<4>(r.raw)));
+                        r = self
+                            .max(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
+                        r = self
+                            .max(r, V128::from_raw(_mm_srli_si128::<4>(r.raw)));
                     }
                 }
                 8 => {
@@ -4206,7 +4661,8 @@ unsafe impl SimdReduce for Sse2 {
                         let hi = _mm_shuffle_pd(f, f, 1);
                         r = V128::from_raw(_mm_castpd_si128(_mm_max_pd(f, hi)));
                     } else {
-                        r = self.max(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
+                        r = self
+                            .max(r, V128::from_raw(_mm_srli_si128::<8>(r.raw)));
                     }
                 }
                 _ => unreachable!(),
@@ -4216,11 +4672,7 @@ unsafe impl SimdReduce for Sse2 {
     }
 
     #[inline(always)]
-    fn sums_of_8_abs_diff(
-        self,
-        a: V128<u8>,
-        b: V128<u8>,
-    ) -> V128<u64> {
+    fn sums_of_8_abs_diff(self, a: V128<u8>, b: V128<u8>) -> V128<u64> {
         V128::from_raw(unsafe { _mm_sad_epu8(a.raw, b.raw) })
     }
 
@@ -4261,7 +4713,8 @@ unsafe impl SimdReduce for Sse2 {
                         // f32 -> f64: convert pairs to f64 and add
                         let ps = _mm_castsi128_ps(v.raw);
                         let lo_pd = _mm_cvtps_pd(ps); // [v0 as f64, v1 as f64]
-                        let hi_ps = _mm_castsi128_ps(_mm_srli_si128::<8>(v.raw));
+                        let hi_ps =
+                            _mm_castsi128_ps(_mm_srli_si128::<8>(v.raw));
                         let hi_pd = _mm_cvtps_pd(hi_ps); // [v2 as f64, v3 as f64]
                         // Add adjacent: result[0] = lo[0]+lo[1], result[1] = hi[0]+hi[1]
                         let lo_swap = _mm_shuffle_pd(lo_pd, lo_pd, 1); // [v1, v0]
@@ -4328,11 +4781,16 @@ unsafe impl SimdFloat for Sse2 {
     fn approx_reciprocal<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
-                V128::from_raw(_mm_castps_si128(_mm_rcp_ps(_mm_castsi128_ps(v.raw))))
+                V128::from_raw(_mm_castps_si128(_mm_rcp_ps(_mm_castsi128_ps(
+                    v.raw,
+                ))))
             } else {
                 // No rcp for f64; use 1.0/x
                 let ones = _mm_set1_pd(1.0);
-                V128::from_raw(_mm_castpd_si128(_mm_div_pd(ones, _mm_castsi128_pd(v.raw))))
+                V128::from_raw(_mm_castpd_si128(_mm_div_pd(
+                    ones,
+                    _mm_castsi128_pd(v.raw),
+                )))
             }
         }
     }
@@ -4341,7 +4799,9 @@ unsafe impl SimdFloat for Sse2 {
     fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
-                V128::from_raw(_mm_castps_si128(_mm_rsqrt_ps(_mm_castsi128_ps(v.raw))))
+                V128::from_raw(_mm_castps_si128(_mm_rsqrt_ps(
+                    _mm_castsi128_ps(v.raw),
+                )))
             } else {
                 let ones = _mm_set1_pd(1.0);
                 let sq = _mm_sqrt_pd(_mm_castsi128_pd(v.raw));
@@ -4367,7 +4827,8 @@ unsafe impl SimdFloat for Sse2 {
                 let rounded = _mm_sub_pd(_mm_add_pd(v_pd, magic), magic);
                 // Guard: |v| >= 2^52 -> return v unchanged
                 let abs_v = _mm_andnot_pd(neg_zero, v_pd);
-                let in_range = _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
+                let in_range =
+                    _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
                 V128::from_raw(_mm_castpd_si128(_mm_or_pd(
                     _mm_and_pd(in_range, rounded),
                     _mm_andnot_pd(in_range, v_pd),
@@ -4394,10 +4855,12 @@ unsafe impl SimdFloat for Sse2 {
                 let abs_rounded = _mm_andnot_pd(neg_zero, rounded);
                 let abs_v = _mm_andnot_pd(neg_zero, v_pd);
                 let too_big = _mm_cmpgt_pd(abs_rounded, abs_v);
-                let fix = _mm_and_pd(too_big, _mm_or_pd(_mm_set1_pd(1.0), sign));
+                let fix =
+                    _mm_and_pd(too_big, _mm_or_pd(_mm_set1_pd(1.0), sign));
                 let trunc = _mm_sub_pd(rounded, fix);
                 // Guard: |v| >= 2^52 -> return v unchanged
-                let in_range = _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
+                let in_range =
+                    _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
                 V128::from_raw(_mm_castpd_si128(_mm_or_pd(
                     _mm_and_pd(in_range, trunc),
                     _mm_andnot_pd(in_range, v_pd),
@@ -4432,10 +4895,12 @@ unsafe impl SimdFloat for Sse2 {
                 let magic = _mm_or_pd(_mm_set1_pd(4503599627370496.0), sign);
                 let rounded = _mm_sub_pd(_mm_add_pd(v_pd, magic), magic);
                 let needs_up = _mm_cmplt_pd(rounded, v_pd);
-                let ceil = _mm_add_pd(rounded, _mm_and_pd(needs_up, _mm_set1_pd(1.0)));
+                let ceil =
+                    _mm_add_pd(rounded, _mm_and_pd(needs_up, _mm_set1_pd(1.0)));
                 // Guard: |v| >= 2^52 -> return v unchanged
                 let abs_v = _mm_andnot_pd(neg_zero, v_pd);
-                let in_range = _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
+                let in_range =
+                    _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
                 V128::from_raw(_mm_castpd_si128(_mm_or_pd(
                     _mm_and_pd(in_range, ceil),
                     _mm_andnot_pd(in_range, v_pd),
@@ -4470,10 +4935,14 @@ unsafe impl SimdFloat for Sse2 {
                 let magic = _mm_or_pd(_mm_set1_pd(4503599627370496.0), sign);
                 let rounded = _mm_sub_pd(_mm_add_pd(v_pd, magic), magic);
                 let needs_down = _mm_cmpgt_pd(rounded, v_pd);
-                let floor = _mm_sub_pd(rounded, _mm_and_pd(needs_down, _mm_set1_pd(1.0)));
+                let floor = _mm_sub_pd(
+                    rounded,
+                    _mm_and_pd(needs_down, _mm_set1_pd(1.0)),
+                );
                 // Guard: |v| >= 2^52 -> return v unchanged
                 let abs_v = _mm_andnot_pd(neg_zero, v_pd);
-                let in_range = _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
+                let in_range =
+                    _mm_cmplt_pd(abs_v, _mm_set1_pd(4503599627370496.0));
                 V128::from_raw(_mm_castpd_si128(_mm_or_pd(
                     _mm_and_pd(in_range, floor),
                     _mm_andnot_pd(in_range, v_pd),
@@ -4483,60 +4952,122 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    fn mul_add<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn mul_add<T: FloatLane>(
+        self,
+        a: V128<T>,
+        b: V128<T>,
+        c: V128<T>,
+    ) -> V128<T> {
         unsafe {
             // SSE2 doesn't have FMA; emulate as a*b + c
             if T::BYTES == 4 {
-                let prod = _mm_mul_ps(_mm_castsi128_ps(a.raw), _mm_castsi128_ps(b.raw));
-                V128::from_raw(_mm_castps_si128(_mm_add_ps(prod, _mm_castsi128_ps(c.raw))))
+                let prod = _mm_mul_ps(
+                    _mm_castsi128_ps(a.raw),
+                    _mm_castsi128_ps(b.raw),
+                );
+                V128::from_raw(_mm_castps_si128(_mm_add_ps(
+                    prod,
+                    _mm_castsi128_ps(c.raw),
+                )))
             } else {
-                let prod = _mm_mul_pd(_mm_castsi128_pd(a.raw), _mm_castsi128_pd(b.raw));
-                V128::from_raw(_mm_castpd_si128(_mm_add_pd(prod, _mm_castsi128_pd(c.raw))))
+                let prod = _mm_mul_pd(
+                    _mm_castsi128_pd(a.raw),
+                    _mm_castsi128_pd(b.raw),
+                );
+                V128::from_raw(_mm_castpd_si128(_mm_add_pd(
+                    prod,
+                    _mm_castsi128_pd(c.raw),
+                )))
             }
         }
     }
 
     #[inline(always)]
-    fn neg_mul_add<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn neg_mul_add<T: FloatLane>(
+        self,
+        a: V128<T>,
+        b: V128<T>,
+        c: V128<T>,
+    ) -> V128<T> {
         unsafe {
             // -(a*b) + c = c - a*b
             if T::BYTES == 4 {
-                let prod = _mm_mul_ps(_mm_castsi128_ps(a.raw), _mm_castsi128_ps(b.raw));
-                V128::from_raw(_mm_castps_si128(_mm_sub_ps(_mm_castsi128_ps(c.raw), prod)))
+                let prod = _mm_mul_ps(
+                    _mm_castsi128_ps(a.raw),
+                    _mm_castsi128_ps(b.raw),
+                );
+                V128::from_raw(_mm_castps_si128(_mm_sub_ps(
+                    _mm_castsi128_ps(c.raw),
+                    prod,
+                )))
             } else {
-                let prod = _mm_mul_pd(_mm_castsi128_pd(a.raw), _mm_castsi128_pd(b.raw));
-                V128::from_raw(_mm_castpd_si128(_mm_sub_pd(_mm_castsi128_pd(c.raw), prod)))
+                let prod = _mm_mul_pd(
+                    _mm_castsi128_pd(a.raw),
+                    _mm_castsi128_pd(b.raw),
+                );
+                V128::from_raw(_mm_castpd_si128(_mm_sub_pd(
+                    _mm_castsi128_pd(c.raw),
+                    prod,
+                )))
             }
         }
     }
 
     #[inline(always)]
-    fn mul_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn mul_sub<T: FloatLane>(
+        self,
+        a: V128<T>,
+        b: V128<T>,
+        c: V128<T>,
+    ) -> V128<T> {
         unsafe {
             // a*b - c
             if T::BYTES == 4 {
-                let prod = _mm_mul_ps(_mm_castsi128_ps(a.raw), _mm_castsi128_ps(b.raw));
-                V128::from_raw(_mm_castps_si128(_mm_sub_ps(prod, _mm_castsi128_ps(c.raw))))
+                let prod = _mm_mul_ps(
+                    _mm_castsi128_ps(a.raw),
+                    _mm_castsi128_ps(b.raw),
+                );
+                V128::from_raw(_mm_castps_si128(_mm_sub_ps(
+                    prod,
+                    _mm_castsi128_ps(c.raw),
+                )))
             } else {
-                let prod = _mm_mul_pd(_mm_castsi128_pd(a.raw), _mm_castsi128_pd(b.raw));
-                V128::from_raw(_mm_castpd_si128(_mm_sub_pd(prod, _mm_castsi128_pd(c.raw))))
+                let prod = _mm_mul_pd(
+                    _mm_castsi128_pd(a.raw),
+                    _mm_castsi128_pd(b.raw),
+                );
+                V128::from_raw(_mm_castpd_si128(_mm_sub_pd(
+                    prod,
+                    _mm_castsi128_pd(c.raw),
+                )))
             }
         }
     }
 
     #[inline(always)]
-    fn neg_mul_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn neg_mul_sub<T: FloatLane>(
+        self,
+        a: V128<T>,
+        b: V128<T>,
+        c: V128<T>,
+    ) -> V128<T> {
         unsafe {
             // -(a*b) - c
             if T::BYTES == 4 {
-                let prod = _mm_mul_ps(_mm_castsi128_ps(a.raw), _mm_castsi128_ps(b.raw));
+                let prod = _mm_mul_ps(
+                    _mm_castsi128_ps(a.raw),
+                    _mm_castsi128_ps(b.raw),
+                );
                 let neg_prod = _mm_sub_ps(_mm_setzero_ps(), prod);
                 V128::from_raw(_mm_castps_si128(_mm_sub_ps(
                     neg_prod,
                     _mm_castsi128_ps(c.raw),
                 )))
             } else {
-                let prod = _mm_mul_pd(_mm_castsi128_pd(a.raw), _mm_castsi128_pd(b.raw));
+                let prod = _mm_mul_pd(
+                    _mm_castsi128_pd(a.raw),
+                    _mm_castsi128_pd(b.raw),
+                );
                 let neg_prod = _mm_sub_pd(_mm_setzero_pd(), prod);
                 V128::from_raw(_mm_castpd_si128(_mm_sub_pd(
                     neg_prod,
@@ -4668,16 +5199,13 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    fn add_sub<T: FloatLane>(
-        self,
-        a: V128<T>,
-        b: V128<T>,
-    ) -> V128<T> {
+    fn add_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // Even lanes subtract, odd lanes add. No SSE3 addsub, so emulate.
         unsafe {
             let raw = if T::BYTES == 4 {
                 // Negate even lanes of b by XOR with sign mask, then add.
-                let sign_mask = _mm_castps_si128(_mm_set_ps(0.0, -0.0, 0.0, -0.0));
+                let sign_mask =
+                    _mm_castps_si128(_mm_set_ps(0.0, -0.0, 0.0, -0.0));
                 let neg_even_b = _mm_xor_si128(b.raw, sign_mask);
                 _mm_castps_si128(_mm_add_ps(
                     _mm_castsi128_ps(a.raw),
@@ -4759,7 +5287,10 @@ use crate::lane::is_type;
 /// Check if a lane type is a signed type.
 #[inline(always)]
 const fn is_signed<T: Lane>() -> bool {
-    is_type::<T, i8>() || is_type::<T, i16>() || is_type::<T, i32>() || is_type::<T, i64>()
+    is_type::<T, i8>()
+        || is_type::<T, i16>()
+        || is_type::<T, i32>()
+        || is_type::<T, i64>()
 }
 
 /// Leading zero count for u32 lanes using the float-conversion trick.
@@ -4859,7 +5390,11 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    fn aes_last_round_inv(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
+    fn aes_last_round_inv(
+        self,
+        state: V128<u8>,
+        round_key: V128<u8>,
+    ) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aesdeclast_si128(state.raw, round_key.raw))
@@ -4916,7 +5451,8 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
             } else {
                 let mut block = [0u8; 16];
                 _mm_storeu_si128(block.as_mut_ptr().cast(), v.raw);
-                let result = super::crypto_soft::aes_key_gen_assist(&block, RCON as u8);
+                let result =
+                    super::crypto_soft::aes_key_gen_assist(&block, RCON as u8);
                 V128::from_raw(_mm_loadu_si128(result.as_ptr().cast()))
             }
         }

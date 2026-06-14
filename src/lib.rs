@@ -101,14 +101,16 @@ pub use ops::SimdOps;
 pub use simd::Simd;
 // Re-export all op sub-traits so user code can bound on them individually.
 pub use ops::{
-    SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdCrypto, SimdFloat, SimdMask,
-    SimdMemory, SimdReduce, SimdShuffle,
+    SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdCrypto,
+    SimdFloat, SimdMask, SimdMemory, SimdReduce, SimdShuffle,
 };
 // Re-export alignment types for aligned arrays.
 pub use ops::{A1, A2, A4, A8, A16, A32, A64, A128, Aligned, Alignment};
 
 #[cfg(feature = "alloc")]
-pub use alloc::{AlignedVec, aligned_vec, aligned_vec_from_slice, aligned_vec_with_capacity};
+pub use alloc::{
+    AlignedVec, aligned_vec, aligned_vec_from_slice, aligned_vec_with_capacity,
+};
 
 #[cfg(target_arch = "x86_64")]
 pub use backend::sse2::Sse2;

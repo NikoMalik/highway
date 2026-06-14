@@ -10,10 +10,12 @@
 use core::arch::x86_64::*;
 use core::marker::PhantomData;
 
-use crate::lane::{FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane};
+use crate::lane::{
+    FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane,
+};
 use crate::ops::{
-    A64, Aligned, SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore, SimdFloat, SimdMask,
-    SimdMemory, SimdReduce, SimdShuffle,
+    A64, Aligned, SimdArith, SimdBitwise, SimdCompare, SimdConvert, SimdCore,
+    SimdFloat, SimdMask, SimdMemory, SimdReduce, SimdShuffle,
 };
 use crate::simd::{self, Simd};
 
@@ -136,7 +138,10 @@ use crate::lane::is_type;
 
 #[inline(always)]
 const fn is_signed<T: Lane>() -> bool {
-    is_type::<T, i8>() || is_type::<T, i16>() || is_type::<T, i32>() || is_type::<T, i64>()
+    is_type::<T, i8>()
+        || is_type::<T, i16>()
+        || is_type::<T, i32>()
+        || is_type::<T, i64>()
 }
 
 // Native VPOPCNTDQ (32/64-bit) — available on Ice Lake+.
@@ -268,7 +273,12 @@ unsafe impl SimdCore for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn insert_lane<T: Lane>(self, v: V512<T>, index: usize, value: T) -> V512<T> {
+    unsafe fn insert_lane<T: Lane>(
+        self,
+        v: V512<T>,
+        index: usize,
+        value: T,
+    ) -> V512<T> {
         unsafe {
             let mut a: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
             _mm512_store_si512(a.as_mut_ptr().cast(), v.raw);
@@ -284,41 +294,58 @@ unsafe impl SimdCore for Avx512 {
                 1 => {
                     let b: u8 = core::mem::transmute_copy(&base);
                     let iota = _mm512_set_epi8(
-                        63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45,
-                        44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
-                        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6,
-                        5, 4, 3, 2, 1, 0,
+                        63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50,
+                        49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36,
+                        35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22,
+                        21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
+                        7, 6, 5, 4, 3, 2, 1, 0,
                     );
-                    V512::from_raw(_mm512_add_epi8(iota, _mm512_set1_epi8(b as i8)))
+                    V512::from_raw(_mm512_add_epi8(
+                        iota,
+                        _mm512_set1_epi8(b as i8),
+                    ))
                 }
                 2 => {
                     let h: u16 = core::mem::transmute_copy(&base);
                     let iota = _mm512_set_epi16(
-                        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13,
-                        12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,
+                        17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2,
+                        1, 0,
                     );
-                    V512::from_raw(_mm512_add_epi16(iota, _mm512_set1_epi16(h as i16)))
+                    V512::from_raw(_mm512_add_epi16(
+                        iota,
+                        _mm512_set1_epi16(h as i16),
+                    ))
                 }
                 4 => {
                     if is_type::<T, f32>() {
                         let b: f32 = core::mem::transmute_copy(&base);
-                        let iota =
-                            _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+                        let iota = _mm512_set_epi32(
+                            15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+                            0,
+                        );
                         V512::from_raw(_mm512_castps_si512(_mm512_add_ps(
                             _mm512_set1_ps(b),
                             _mm512_cvtepi32_ps(iota),
                         )))
                     } else {
                         let w: u32 = core::mem::transmute_copy(&base);
-                        let iota =
-                            _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-                        V512::from_raw(_mm512_add_epi32(iota, _mm512_set1_epi32(w as i32)))
+                        let iota = _mm512_set_epi32(
+                            15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+                            0,
+                        );
+                        V512::from_raw(_mm512_add_epi32(
+                            iota,
+                            _mm512_set1_epi32(w as i32),
+                        ))
                     }
                 }
                 8 => {
                     if is_type::<T, f64>() {
                         let b: f64 = core::mem::transmute_copy(&base);
-                        let iota_f64 = _mm512_set_pd(7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0);
+                        let iota_f64 = _mm512_set_pd(
+                            7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0,
+                        );
                         V512::from_raw(_mm512_castpd_si512(_mm512_add_pd(
                             _mm512_set1_pd(b),
                             iota_f64,
@@ -326,7 +353,10 @@ unsafe impl SimdCore for Avx512 {
                     } else {
                         let d: u64 = core::mem::transmute_copy(&base);
                         let iota = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-                        V512::from_raw(_mm512_add_epi64(iota, _mm512_set1_epi64(d as i64)))
+                        V512::from_raw(_mm512_add_epi64(
+                            iota,
+                            _mm512_set1_epi64(d as i64),
+                        ))
                     }
                 }
                 _ => unreachable!(),
@@ -370,10 +400,14 @@ unsafe impl SimdMemory for Avx512 {
     unsafe fn load_dup128<T: Lane>(self, ptr: *const T) -> V512<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
-                _mm512_castps_si512(_mm512_broadcast_f32x4(_mm_loadu_ps(ptr.cast())))
+                _mm512_castps_si512(_mm512_broadcast_f32x4(_mm_loadu_ps(
+                    ptr.cast(),
+                )))
             } else if is_type::<T, f64>() {
                 // 128 bits = 2 f64, broadcast to 4 copies
-                _mm512_castpd_si512(_mm512_broadcast_f64x2(_mm_loadu_pd(ptr.cast())))
+                _mm512_castpd_si512(_mm512_broadcast_f64x2(_mm_loadu_pd(
+                    ptr.cast(),
+                )))
             } else {
                 _mm512_broadcast_i32x4(_mm_loadu_si128(ptr.cast()))
             };
@@ -382,18 +416,40 @@ unsafe impl SimdMemory for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn masked_load<T: Lane>(self, mask: M512<T>, ptr: *const T) -> V512<T> {
+    unsafe fn masked_load<T: Lane>(
+        self,
+        mask: M512<T>,
+        ptr: *const T,
+    ) -> V512<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
-                _mm512_castps_si512(_mm512_maskz_loadu_ps(mask.raw as __mmask16, ptr.cast()))
+                _mm512_castps_si512(_mm512_maskz_loadu_ps(
+                    mask.raw as __mmask16,
+                    ptr.cast(),
+                ))
             } else if is_type::<T, f64>() {
-                _mm512_castpd_si512(_mm512_maskz_loadu_pd(mask.raw as __mmask8, ptr.cast()))
+                _mm512_castpd_si512(_mm512_maskz_loadu_pd(
+                    mask.raw as __mmask8,
+                    ptr.cast(),
+                ))
             } else {
                 match T::BYTES {
-                    1 => _mm512_maskz_loadu_epi8(mask.raw as __mmask64, ptr.cast()),
-                    2 => _mm512_maskz_loadu_epi16(mask.raw as __mmask32, ptr.cast()),
-                    4 => _mm512_maskz_loadu_epi32(mask.raw as __mmask16, ptr.cast()),
-                    8 => _mm512_maskz_loadu_epi64(mask.raw as __mmask8, ptr.cast()),
+                    1 => _mm512_maskz_loadu_epi8(
+                        mask.raw as __mmask64,
+                        ptr.cast(),
+                    ),
+                    2 => _mm512_maskz_loadu_epi16(
+                        mask.raw as __mmask32,
+                        ptr.cast(),
+                    ),
+                    4 => _mm512_maskz_loadu_epi32(
+                        mask.raw as __mmask16,
+                        ptr.cast(),
+                    ),
+                    8 => _mm512_maskz_loadu_epi64(
+                        mask.raw as __mmask8,
+                        ptr.cast(),
+                    ),
                     _ => unreachable!(),
                 }
             };
@@ -402,7 +458,12 @@ unsafe impl SimdMemory for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn blended_store<T: Lane>(self, v: V512<T>, mask: M512<T>, ptr: *mut T) {
+    unsafe fn blended_store<T: Lane>(
+        self,
+        v: V512<T>,
+        mask: M512<T>,
+        ptr: *mut T,
+    ) {
         unsafe {
             if is_type::<T, f32>() {
                 _mm512_mask_storeu_ps(
@@ -411,13 +472,33 @@ unsafe impl SimdMemory for Avx512 {
                     _mm512_castsi512_ps(v.raw),
                 );
             } else if is_type::<T, f64>() {
-                _mm512_mask_storeu_pd(ptr.cast(), mask.raw as __mmask8, _mm512_castsi512_pd(v.raw));
+                _mm512_mask_storeu_pd(
+                    ptr.cast(),
+                    mask.raw as __mmask8,
+                    _mm512_castsi512_pd(v.raw),
+                );
             } else {
                 match T::BYTES {
-                    1 => _mm512_mask_storeu_epi8(ptr.cast(), mask.raw as __mmask64, v.raw),
-                    2 => _mm512_mask_storeu_epi16(ptr.cast(), mask.raw as __mmask32, v.raw),
-                    4 => _mm512_mask_storeu_epi32(ptr.cast(), mask.raw as __mmask16, v.raw),
-                    8 => _mm512_mask_storeu_epi64(ptr.cast(), mask.raw as __mmask8, v.raw),
+                    1 => _mm512_mask_storeu_epi8(
+                        ptr.cast(),
+                        mask.raw as __mmask64,
+                        v.raw,
+                    ),
+                    2 => _mm512_mask_storeu_epi16(
+                        ptr.cast(),
+                        mask.raw as __mmask32,
+                        v.raw,
+                    ),
+                    4 => _mm512_mask_storeu_epi32(
+                        ptr.cast(),
+                        mask.raw as __mmask16,
+                        v.raw,
+                    ),
+                    8 => _mm512_mask_storeu_epi64(
+                        ptr.cast(),
+                        mask.raw as __mmask8,
+                        v.raw,
+                    ),
                     _ => unreachable!(),
                 }
             }
@@ -432,26 +513,36 @@ unsafe impl SimdMemory for Avx512 {
     ) -> V512<T> {
         unsafe {
             if is_type::<T, u32>() || is_type::<T, i32>() {
-                V512::from_raw(_mm512_i32gather_epi32::<4>(idx.raw, base.cast::<i32>()))
-            } else if is_type::<T, f32>() {
-                V512::from_raw(_mm512_castps_si512(
-                    _mm512_i32gather_ps::<4>(idx.raw, base.cast::<f32>()),
+                V512::from_raw(_mm512_i32gather_epi32::<4>(
+                    idx.raw,
+                    base.cast::<i32>(),
                 ))
+            } else if is_type::<T, f32>() {
+                V512::from_raw(_mm512_castps_si512(_mm512_i32gather_ps::<4>(
+                    idx.raw,
+                    base.cast::<f32>(),
+                )))
             } else if is_type::<T, u64>() || is_type::<T, i64>() {
                 let idx256 = _mm512_castsi512_si256(idx.raw);
-                V512::from_raw(_mm512_i32gather_epi64::<8>(idx256, base.cast::<i64>()))
+                V512::from_raw(_mm512_i32gather_epi64::<8>(
+                    idx256,
+                    base.cast::<i64>(),
+                ))
             } else if is_type::<T, f64>() {
                 let idx256 = _mm512_castsi512_si256(idx.raw);
-                V512::from_raw(_mm512_castpd_si512(
-                    _mm512_i32gather_pd::<8>(idx256, base.cast::<f64>()),
-                ))
+                V512::from_raw(_mm512_castpd_si512(_mm512_i32gather_pd::<8>(
+                    idx256,
+                    base.cast::<f64>(),
+                )))
             } else {
                 // u8/i8/u16/i16: scalar fallback
                 // Only use as many indices as available (16 i32 slots in 512-bit vector)
                 let lanes = (64 / T::BYTES).min(16);
-                let mut idx_arr: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                let mut idx_arr: Aligned<A64, [u8; 64]> =
+                    Aligned::new([0u8; 64]);
                 _mm512_store_si512(idx_arr.as_mut_ptr().cast(), idx.raw);
-                let mut result: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                let mut result: Aligned<A64, [u8; 64]> =
+                    Aligned::new([0u8; 64]);
                 for i in 0..lanes {
                     let index = read_lane::<i32>(&idx_arr, i * 4) as usize;
                     let val: T = *base.add(index);
@@ -471,7 +562,11 @@ unsafe impl SimdMemory for Avx512 {
     ) {
         unsafe {
             if is_type::<T, u32>() || is_type::<T, i32>() {
-                _mm512_i32scatter_epi32::<4>(base.cast::<i32>(), idx.raw, v.raw);
+                _mm512_i32scatter_epi32::<4>(
+                    base.cast::<i32>(),
+                    idx.raw,
+                    v.raw,
+                );
             } else if is_type::<T, f32>() {
                 _mm512_i32scatter_ps::<4>(
                     base.cast::<f32>(),
@@ -493,7 +588,8 @@ unsafe impl SimdMemory for Avx512 {
                 // Only use as many indices as available (16 i32 slots in 512-bit vector)
                 let lanes = (64 / T::BYTES).min(16);
                 let mut v_arr: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
-                let mut idx_arr: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                let mut idx_arr: Aligned<A64, [u8; 64]> =
+                    Aligned::new([0u8; 64]);
                 _mm512_store_si512(v_arr.as_mut_ptr().cast(), v.raw);
                 _mm512_store_si512(idx_arr.as_mut_ptr().cast(), idx.raw);
                 for i in 0..lanes {
@@ -725,21 +821,37 @@ unsafe impl SimdMemory for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn load_expand<T: Lane>(self, mask: M512<T>, ptr: *const T) -> V512<T> {
+    unsafe fn load_expand<T: Lane>(
+        self,
+        mask: M512<T>,
+        ptr: *const T,
+    ) -> V512<T> {
         // AVX-512 has native expand-load instructions
         unsafe {
             if is_type::<T, f32>() {
                 V512::from_raw(_mm512_castps_si512(
-                    _mm512_maskz_expandloadu_ps(mask.raw as __mmask16, ptr.cast())
+                    _mm512_maskz_expandloadu_ps(
+                        mask.raw as __mmask16,
+                        ptr.cast(),
+                    ),
                 ))
             } else if is_type::<T, f64>() {
                 V512::from_raw(_mm512_castpd_si512(
-                    _mm512_maskz_expandloadu_pd(mask.raw as __mmask8, ptr.cast())
+                    _mm512_maskz_expandloadu_pd(
+                        mask.raw as __mmask8,
+                        ptr.cast(),
+                    ),
                 ))
             } else {
                 match T::BYTES {
-                    4 => V512::from_raw(_mm512_maskz_expandloadu_epi32(mask.raw as __mmask16, ptr.cast())),
-                    8 => V512::from_raw(_mm512_maskz_expandloadu_epi64(mask.raw as __mmask8, ptr.cast())),
+                    4 => V512::from_raw(_mm512_maskz_expandloadu_epi32(
+                        mask.raw as __mmask16,
+                        ptr.cast(),
+                    )),
+                    8 => V512::from_raw(_mm512_maskz_expandloadu_epi64(
+                        mask.raw as __mmask8,
+                        ptr.cast(),
+                    )),
                     _ => {
                         // For 1/2-byte types, no native expand-load. Use expand after load.
                         let loaded = self.load_u(ptr);
@@ -830,10 +942,12 @@ unsafe impl SimdArith for Avx512 {
                     let mask = _mm512_set1_epi16(0x00FF);
                     let a_lo = _mm512_and_si512(a.raw, mask);
                     let b_lo = _mm512_and_si512(b.raw, mask);
-                    let mul_lo = _mm512_and_si512(_mm512_mullo_epi16(a_lo, b_lo), mask);
+                    let mul_lo =
+                        _mm512_and_si512(_mm512_mullo_epi16(a_lo, b_lo), mask);
                     let a_hi = _mm512_srli_epi16(a.raw, 8);
                     let b_hi = _mm512_srli_epi16(b.raw, 8);
-                    let mul_hi = _mm512_slli_epi16(_mm512_mullo_epi16(a_hi, b_hi), 8);
+                    let mul_hi =
+                        _mm512_slli_epi16(_mm512_mullo_epi16(a_hi, b_hi), 8);
                     _mm512_or_si512(mul_lo, mul_hi)
                 }
                 2 => _mm512_mullo_epi16(a.raw, b.raw),
@@ -911,7 +1025,8 @@ unsafe impl SimdArith for Avx512 {
                         // Overflow: a and b same sign, sum different sign
                         // pos + pos -> neg: saturate to MAX (0x7FFFFFFF)
                         // neg + neg -> pos: saturate to MIN (0x80000000)
-                        let sign_a = _mm512_sra_epi32(a.raw, _mm_cvtsi64_si128(31));
+                        let sign_a =
+                            _mm512_sra_epi32(a.raw, _mm_cvtsi64_si128(31));
                         // Overflow when a^sum has sign bit set AND a^b does NOT have sign bit set
                         let overflow_mask = _mm512_andnot_si512(
                             _mm512_xor_si512(a.raw, b.raw),
@@ -919,8 +1034,10 @@ unsafe impl SimdArith for Avx512 {
                         );
                         let overflow = _mm512_movepi32_mask(overflow_mask);
                         // Saturated value: if a was positive -> MAX, else MIN
-                        let sat_val =
-                            _mm512_xor_si512(sign_a, _mm512_set1_epi32(0x7FFF_FFFFu32 as i32));
+                        let sat_val = _mm512_xor_si512(
+                            sign_a,
+                            _mm512_set1_epi32(0x7FFF_FFFFu32 as i32),
+                        );
                         _mm512_mask_mov_epi32(sum, overflow, sat_val)
                     }
                 }
@@ -931,7 +1048,8 @@ unsafe impl SimdArith for Avx512 {
                         _mm512_mask_set1_epi64(sum, overflow, -1i64)
                     } else {
                         let sum = _mm512_add_epi64(a.raw, b.raw);
-                        let sign_a = _mm512_sra_epi64(a.raw, _mm_cvtsi64_si128(63));
+                        let sign_a =
+                            _mm512_sra_epi64(a.raw, _mm_cvtsi64_si128(63));
                         let overflow_mask = _mm512_andnot_si512(
                             _mm512_xor_si512(a.raw, b.raw),
                             _mm512_xor_si512(a.raw, sum),
@@ -978,14 +1096,17 @@ unsafe impl SimdArith for Avx512 {
                         // Signed saturating sub: a - b, detect overflow
                         let diff = _mm512_sub_epi32(a.raw, b.raw);
                         // Overflow when a and b have different signs AND diff sign differs from a
-                        let sign_a = _mm512_sra_epi32(a.raw, _mm_cvtsi64_si128(31));
+                        let sign_a =
+                            _mm512_sra_epi32(a.raw, _mm_cvtsi64_si128(31));
                         let overflow_mask = _mm512_and_si512(
                             _mm512_xor_si512(a.raw, b.raw),
                             _mm512_xor_si512(a.raw, diff),
                         );
                         let overflow = _mm512_movepi32_mask(overflow_mask);
-                        let sat_val =
-                            _mm512_xor_si512(sign_a, _mm512_set1_epi32(0x7FFF_FFFFu32 as i32));
+                        let sat_val = _mm512_xor_si512(
+                            sign_a,
+                            _mm512_set1_epi32(0x7FFF_FFFFu32 as i32),
+                        );
                         _mm512_mask_mov_epi32(diff, overflow, sat_val)
                     }
                 }
@@ -996,7 +1117,8 @@ unsafe impl SimdArith for Avx512 {
                         _mm512_mask_set1_epi64(diff, underflow, 0)
                     } else {
                         let diff = _mm512_sub_epi64(a.raw, b.raw);
-                        let sign_a = _mm512_sra_epi64(a.raw, _mm_cvtsi64_si128(63));
+                        let sign_a =
+                            _mm512_sra_epi64(a.raw, _mm_cvtsi64_si128(63));
                         let overflow_mask = _mm512_and_si512(
                             _mm512_xor_si512(a.raw, b.raw),
                             _mm512_xor_si512(a.raw, diff),
@@ -1180,8 +1302,10 @@ unsafe impl SimdArith for Avx512 {
                         let hi_odd = _mm512_and_si512(prod_odd, mask_hi);
                         _mm512_or_si512(hi_even, hi_odd)
                     } else {
-                        let a_even = _mm512_srai_epi16(_mm512_slli_epi16(a.raw, 8), 8);
-                        let b_even = _mm512_srai_epi16(_mm512_slli_epi16(b.raw, 8), 8);
+                        let a_even =
+                            _mm512_srai_epi16(_mm512_slli_epi16(a.raw, 8), 8);
+                        let b_even =
+                            _mm512_srai_epi16(_mm512_slli_epi16(b.raw, 8), 8);
                         let prod_even = _mm512_mullo_epi16(a_even, b_even);
                         let hi_even = _mm512_srli_epi16(prod_even, 8);
                         let a_odd = _mm512_srai_epi16(a.raw, 8);
@@ -1206,7 +1330,8 @@ unsafe impl SimdArith for Avx512 {
                         let p_odd = _mm512_mul_epu32(a_odd, b_odd);
                         let hi_even = _mm512_srli_epi64(p_even, 32);
                         let mask_hi32 = _mm512_set_epi32(
-                            -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0,
+                            -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0,
+                            -1, 0,
                         );
                         let hi_odd = _mm512_and_si512(p_odd, mask_hi32);
                         _mm512_or_si512(hi_even, hi_odd)
@@ -1218,7 +1343,8 @@ unsafe impl SimdArith for Avx512 {
                         let p_odd = _mm512_mul_epi32(a_odd, b_odd);
                         let hi_even = _mm512_srli_epi64(p_even, 32);
                         let mask_hi32 = _mm512_set_epi32(
-                            -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0,
+                            -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0,
+                            -1, 0,
                         );
                         let hi_odd = _mm512_and_si512(p_odd, mask_hi32);
                         _mm512_or_si512(hi_even, hi_odd)
@@ -1240,7 +1366,8 @@ unsafe impl SimdArith for Avx512 {
                     let one = _mm512_set1_epi32(1);
                     let a_half = _mm512_srli_epi32(a.raw, 1);
                     let b_half = _mm512_srli_epi32(b.raw, 1);
-                    let carry = _mm512_and_si512(_mm512_or_si512(a.raw, b.raw), one);
+                    let carry =
+                        _mm512_and_si512(_mm512_or_si512(a.raw, b.raw), one);
                     _mm512_add_epi32(_mm512_add_epi32(a_half, b_half), carry)
                 }
                 8 => {
@@ -1248,7 +1375,8 @@ unsafe impl SimdArith for Avx512 {
                     let one = _mm512_set1_epi64(1);
                     let a_half = _mm512_srli_epi64(a.raw, 1);
                     let b_half = _mm512_srli_epi64(b.raw, 1);
-                    let carry = _mm512_and_si512(_mm512_or_si512(a.raw, b.raw), one);
+                    let carry =
+                        _mm512_and_si512(_mm512_or_si512(a.raw, b.raw), one);
                     _mm512_add_epi64(_mm512_add_epi64(a_half, b_half), carry)
                 }
                 _ => unreachable!(),
@@ -1281,14 +1409,17 @@ unsafe impl SimdArith for Avx512 {
                 4 => {
                     if is_type::<T, f32>() {
                         // f32 -> f64: gather even f32 lanes, promote, multiply
-                        let idx =
-                            _mm512_set_epi32(0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0);
+                        let idx = _mm512_set_epi32(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
                         let a_even = _mm512_permutexvar_epi32(idx, a.raw);
                         let b_even = _mm512_permutexvar_epi32(idx, b.raw);
-                        let a_f64 =
-                            _mm512_cvtps_pd(_mm256_castsi256_ps(_mm512_castsi512_si256(a_even)));
-                        let b_f64 =
-                            _mm512_cvtps_pd(_mm256_castsi256_ps(_mm512_castsi512_si256(b_even)));
+                        let a_f64 = _mm512_cvtps_pd(_mm256_castsi256_ps(
+                            _mm512_castsi512_si256(a_even),
+                        ));
+                        let b_f64 = _mm512_cvtps_pd(_mm256_castsi256_ps(
+                            _mm512_castsi512_si256(b_even),
+                        ));
                         _mm512_castpd_si512(_mm512_mul_pd(a_f64, b_f64))
                     } else if is_signed::<T>() {
                         _mm512_mul_epi32(a.raw, b.raw)
@@ -1299,8 +1430,10 @@ unsafe impl SimdArith for Avx512 {
                 1 => {
                     // u8/i8 -> u16/i16: extract even bytes, widen, multiply
                     if is_signed::<T>() {
-                        let a16 = _mm512_srai_epi16(_mm512_slli_epi16(a.raw, 8), 8);
-                        let b16 = _mm512_srai_epi16(_mm512_slli_epi16(b.raw, 8), 8);
+                        let a16 =
+                            _mm512_srai_epi16(_mm512_slli_epi16(a.raw, 8), 8);
+                        let b16 =
+                            _mm512_srai_epi16(_mm512_slli_epi16(b.raw, 8), 8);
                         _mm512_mullo_epi16(a16, b16)
                     } else {
                         let mask = _mm512_set1_epi16(0x00FFu16 as i16);
@@ -1312,8 +1445,10 @@ unsafe impl SimdArith for Avx512 {
                 2 => {
                     // u16/i16 -> u32/i32: extract even 16-bit lanes, widen, multiply
                     if is_signed::<T>() {
-                        let a32 = _mm512_srai_epi32(_mm512_slli_epi32(a.raw, 16), 16);
-                        let b32 = _mm512_srai_epi32(_mm512_slli_epi32(b.raw, 16), 16);
+                        let a32 =
+                            _mm512_srai_epi32(_mm512_slli_epi32(a.raw, 16), 16);
+                        let b32 =
+                            _mm512_srai_epi32(_mm512_slli_epi32(b.raw, 16), 16);
                         _mm512_mullo_epi32(a32, b32)
                     } else {
                         let mask = _mm512_set1_epi32(0x0000FFFFu32 as i32);
@@ -1338,14 +1473,17 @@ unsafe impl SimdArith for Avx512 {
                 4 => {
                     if is_type::<T, f32>() {
                         // f32 -> f64: gather odd f32 lanes, promote, multiply
-                        let idx =
-                            _mm512_set_epi32(0, 0, 0, 0, 0, 0, 0, 0, 15, 13, 11, 9, 7, 5, 3, 1);
+                        let idx = _mm512_set_epi32(
+                            0, 0, 0, 0, 0, 0, 0, 0, 15, 13, 11, 9, 7, 5, 3, 1,
+                        );
                         let a_odd = _mm512_permutexvar_epi32(idx, a.raw);
                         let b_odd = _mm512_permutexvar_epi32(idx, b.raw);
-                        let a_f64 =
-                            _mm512_cvtps_pd(_mm256_castsi256_ps(_mm512_castsi512_si256(a_odd)));
-                        let b_f64 =
-                            _mm512_cvtps_pd(_mm256_castsi256_ps(_mm512_castsi512_si256(b_odd)));
+                        let a_f64 = _mm512_cvtps_pd(_mm256_castsi256_ps(
+                            _mm512_castsi512_si256(a_odd),
+                        ));
+                        let b_f64 = _mm512_cvtps_pd(_mm256_castsi256_ps(
+                            _mm512_castsi512_si256(b_odd),
+                        ));
                         _mm512_castpd_si512(_mm512_mul_pd(a_f64, b_f64))
                     } else {
                         // Shift right by 32 bits to move odd lanes into even positions
@@ -1398,20 +1536,12 @@ unsafe impl SimdArith for Avx512 {
     }
 
     #[inline(always)]
-    fn sat_widen_mul_pairwise_add(
-        self,
-        a: V512<u8>,
-        b: V512<i8>,
-    ) -> V512<i16> {
+    fn sat_widen_mul_pairwise_add(self, a: V512<u8>, b: V512<i8>) -> V512<i16> {
         V512::from_raw(unsafe { _mm512_maddubs_epi16(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    fn mul_fixed_point_15(
-        self,
-        a: V512<i16>,
-        b: V512<i16>,
-    ) -> V512<i16> {
+    fn mul_fixed_point_15(self, a: V512<i16>, b: V512<i16>) -> V512<i16> {
         V512::from_raw(unsafe { _mm512_mulhrs_epi16(a.raw, b.raw) })
     }
 
@@ -1423,7 +1553,10 @@ unsafe impl SimdArith for Avx512 {
         sum: V512<i32>,
     ) -> V512<i32> {
         unsafe {
-            V512::from_raw(_mm512_add_epi32(sum.raw, _mm512_madd_epi16(a.raw, b.raw)))
+            V512::from_raw(_mm512_add_epi32(
+                sum.raw,
+                _mm512_madd_epi16(a.raw, b.raw),
+            ))
         }
     }
 
@@ -1438,27 +1571,57 @@ unsafe impl SimdArith for Avx512 {
     }
 
     #[inline(always)]
-    fn masked_min_or<T: Lane>(self, no: V512<T>, mask: M512<T>, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn masked_min_or<T: Lane>(
+        self,
+        no: V512<T>,
+        mask: M512<T>,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         self.if_then_else(mask, self.min(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_max_or<T: Lane>(self, no: V512<T>, mask: M512<T>, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn masked_max_or<T: Lane>(
+        self,
+        no: V512<T>,
+        mask: M512<T>,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         self.if_then_else(mask, self.max(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_add_or<T: Lane>(self, no: V512<T>, mask: M512<T>, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn masked_add_or<T: Lane>(
+        self,
+        no: V512<T>,
+        mask: M512<T>,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         self.if_then_else(mask, self.add(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_sub_or<T: Lane>(self, no: V512<T>, mask: M512<T>, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn masked_sub_or<T: Lane>(
+        self,
+        no: V512<T>,
+        mask: M512<T>,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         self.if_then_else(mask, self.sub(a, b), no)
     }
 
     #[inline(always)]
-    fn masked_mul_or<T: Lane>(self, no: V512<T>, mask: M512<T>, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn masked_mul_or<T: Lane>(
+        self,
+        no: V512<T>,
+        mask: M512<T>,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         self.if_then_else(mask, self.mul(a, b), no)
     }
 }
@@ -1496,13 +1659,17 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V512<T>) -> V512<T> {
+    fn shift_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
                 1 => {
                     let shifted = _mm512_sll_epi16(v.raw, count);
-                    let mask = _mm512_set1_epi8((0xFFu8.wrapping_shl(BITS)) as i8);
+                    let mask =
+                        _mm512_set1_epi8((0xFFu8.wrapping_shl(BITS)) as i8);
                     _mm512_and_si512(shifted, mask)
                 }
                 2 => _mm512_sll_epi16(v.raw, count),
@@ -1515,7 +1682,10 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V512<T>) -> V512<T> {
+    fn shift_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1523,15 +1693,21 @@ unsafe impl SimdBitwise for Avx512 {
                     if is_signed::<T>() {
                         let count8 = _mm_cvtsi64_si128(8i64);
                         let count_plus_8 = _mm_cvtsi64_si128((BITS + 8) as i64);
-                        let shifted =
-                            _mm512_sra_epi16(_mm512_sll_epi16(v.raw, count8), count_plus_8);
+                        let shifted = _mm512_sra_epi16(
+                            _mm512_sll_epi16(v.raw, count8),
+                            count_plus_8,
+                        );
                         let mask = _mm512_set1_epi16(0x00FF);
                         let lo = _mm512_and_si512(shifted, mask);
-                        let hi = _mm512_andnot_si512(mask, _mm512_sra_epi16(v.raw, count));
+                        let hi = _mm512_andnot_si512(
+                            mask,
+                            _mm512_sra_epi16(v.raw, count),
+                        );
                         _mm512_or_si512(lo, hi)
                     } else {
                         let shifted = _mm512_srl_epi16(v.raw, count);
-                        let mask = _mm512_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8);
+                        let mask =
+                            _mm512_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8);
                         _mm512_and_si512(shifted, mask)
                     }
                 }
@@ -1563,13 +1739,17 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V512<T>) -> V512<T> {
+    fn rotate_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let type_bits = (T::BYTES * 8) as u32;
             let raw = match T::BYTES {
                 4 | 8 => {
                     let right_count = _mm_cvtsi64_si128(BITS as i64);
-                    let left_count = _mm_cvtsi64_si128((type_bits - BITS) as i64);
+                    let left_count =
+                        _mm_cvtsi64_si128((type_bits - BITS) as i64);
                     let right = if T::BYTES == 4 {
                         _mm512_srl_epi32(v.raw, right_count)
                     } else {
@@ -1585,7 +1765,8 @@ unsafe impl SimdBitwise for Avx512 {
                 2 => {
                     // rotate_right for u16/i16: shift right + shift left + OR, masked to 16-bit lanes
                     let right_count = _mm_cvtsi64_si128(BITS as i64);
-                    let left_count = _mm_cvtsi64_si128((type_bits - BITS) as i64);
+                    let left_count =
+                        _mm_cvtsi64_si128((type_bits - BITS) as i64);
                     let right = _mm512_srl_epi16(v.raw, right_count);
                     let left = _mm512_sll_epi16(v.raw, left_count);
                     _mm512_or_si512(right, left)
@@ -1593,14 +1774,17 @@ unsafe impl SimdBitwise for Avx512 {
                 1 => {
                     // rotate_right for u8/i8: emulate via 16-bit shifts with per-byte masking
                     let right_count = _mm_cvtsi64_si128(BITS as i64);
-                    let left_count = _mm_cvtsi64_si128((type_bits - BITS) as i64);
+                    let left_count =
+                        _mm_cvtsi64_si128((type_bits - BITS) as i64);
                     let right = _mm512_and_si512(
                         _mm512_srl_epi16(v.raw, right_count),
                         _mm512_set1_epi8((0xFFu8.wrapping_shr(BITS)) as i8),
                     );
                     let left = _mm512_and_si512(
                         _mm512_sll_epi16(v.raw, left_count),
-                        _mm512_set1_epi8((0xFFu8.wrapping_shl(type_bits - BITS)) as i8),
+                        _mm512_set1_epi8(
+                            (0xFFu8.wrapping_shl(type_bits - BITS)) as i8,
+                        ),
                     );
                     _mm512_or_si512(right, left)
                 }
@@ -1617,7 +1801,8 @@ unsafe impl SimdBitwise for Avx512 {
             let raw = match T::BYTES {
                 1 => {
                     let shifted = _mm512_sll_epi16(v.raw, count);
-                    let mask = _mm512_set1_epi8((0xFFu8.wrapping_shl(bits)) as i8);
+                    let mask =
+                        _mm512_set1_epi8((0xFFu8.wrapping_shl(bits)) as i8);
                     _mm512_and_si512(shifted, mask)
                 }
                 2 => _mm512_sll_epi16(v.raw, count),
@@ -1630,7 +1815,11 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shift_right_same<T: IntegerLane>(self, v: V512<T>, bits: u32) -> V512<T> {
+    fn shift_right_same<T: IntegerLane>(
+        self,
+        v: V512<T>,
+        bits: u32,
+    ) -> V512<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1639,8 +1828,10 @@ unsafe impl SimdBitwise for Avx512 {
                         // Emulate arithmetic shift right for i8
                         let count8 = _mm_cvtsi64_si128(8i64);
                         let count_plus_8 = _mm_cvtsi64_si128((bits + 8) as i64);
-                        let shifted =
-                            _mm512_sra_epi16(_mm512_sll_epi16(v.raw, count8), count_plus_8);
+                        let shifted = _mm512_sra_epi16(
+                            _mm512_sll_epi16(v.raw, count8),
+                            count_plus_8,
+                        );
                         let mask = _mm512_set1_epi16(0x00FF);
                         let lo = _mm512_and_si512(shifted, mask);
                         let hi_shifted = _mm512_sra_epi16(v.raw, count);
@@ -1648,7 +1839,8 @@ unsafe impl SimdBitwise for Avx512 {
                         _mm512_or_si512(lo, hi)
                     } else {
                         let shifted = _mm512_srl_epi16(v.raw, count);
-                        let mask = _mm512_set1_epi8((0xFFu8.wrapping_shr(bits)) as i8);
+                        let mask =
+                            _mm512_set1_epi8((0xFFu8.wrapping_shr(bits)) as i8);
                         _mm512_and_si512(shifted, mask)
                     }
                 }
@@ -1680,7 +1872,10 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V512<T>) -> V512<T> {
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = match BYTES {
                 0 => v.raw,
@@ -1706,7 +1901,10 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V512<T>) -> V512<T> {
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = match BYTES {
                 0 => v.raw,
@@ -1795,7 +1993,11 @@ unsafe impl SimdBitwise for Avx512 {
                 let lzc_hi = _mm512_sub_epi32(_mm512_lzcnt_epi32(hi_32), bias);
                 let lo_16 = _mm512_cvtepi32_epi16(lzc_lo);
                 let hi_16 = _mm512_cvtepi32_epi16(lzc_hi);
-                V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo_16), hi_16, 1))
+                V512::from_raw(_mm512_inserti64x4(
+                    _mm512_castsi256_si512(lo_16),
+                    hi_16,
+                    1,
+                ))
             } else {
                 // 8-bit: process in 4 batches of 16 bytes -> 16 x i32
                 let bias = _mm512_set1_epi32(24);
@@ -1824,8 +2026,16 @@ unsafe impl SimdBitwise for Avx512 {
                 let p23_hi = _mm512_cvtepi32_epi16(lz3);
 
                 // Combine into two 512-bit vectors of i16
-                let half0 = _mm512_inserti64x4(_mm512_castsi256_si512(p01_lo), p01_hi, 1);
-                let half1 = _mm512_inserti64x4(_mm512_castsi256_si512(p23_lo), p23_hi, 1);
+                let half0 = _mm512_inserti64x4(
+                    _mm512_castsi256_si512(p01_lo),
+                    p01_hi,
+                    1,
+                );
+                let half1 = _mm512_inserti64x4(
+                    _mm512_castsi256_si512(p23_lo),
+                    p23_hi,
+                    1,
+                );
 
                 // Pack 16->8: use _mm512_cvtepi16_epi8 to get __m256i from each
                 let bytes0 = _mm512_cvtepi16_epi8(half0); // __m256i, 32 bytes
@@ -1867,30 +2077,33 @@ unsafe impl SimdBitwise for Avx512 {
                 2 => {
                     // Swap bytes within each u16: [1,0, 3,2, ...]
                     let idx = _mm512_set_epi8(
-                        62, 63, 60, 61, 58, 59, 56, 57, 54, 55, 52, 53, 50, 51, 48, 49, 46, 47, 44,
-                        45, 42, 43, 40, 41, 38, 39, 36, 37, 34, 35, 32, 33, 30, 31, 28, 29, 26, 27,
-                        24, 25, 22, 23, 20, 21, 18, 19, 16, 17, 14, 15, 12, 13, 10, 11, 8, 9, 6, 7,
-                        4, 5, 2, 3, 0, 1,
+                        62, 63, 60, 61, 58, 59, 56, 57, 54, 55, 52, 53, 50, 51,
+                        48, 49, 46, 47, 44, 45, 42, 43, 40, 41, 38, 39, 36, 37,
+                        34, 35, 32, 33, 30, 31, 28, 29, 26, 27, 24, 25, 22, 23,
+                        20, 21, 18, 19, 16, 17, 14, 15, 12, 13, 10, 11, 8, 9,
+                        6, 7, 4, 5, 2, 3, 0, 1,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
                 4 => {
                     // Reverse bytes within each u32: [3,2,1,0, 7,6,5,4, ...]
                     let idx = _mm512_set_epi8(
-                        60, 61, 62, 63, 56, 57, 58, 59, 52, 53, 54, 55, 48, 49, 50, 51, 44, 45, 46,
-                        47, 40, 41, 42, 43, 36, 37, 38, 39, 32, 33, 34, 35, 28, 29, 30, 31, 24, 25,
-                        26, 27, 20, 21, 22, 23, 16, 17, 18, 19, 12, 13, 14, 15, 8, 9, 10, 11, 4, 5,
-                        6, 7, 0, 1, 2, 3,
+                        60, 61, 62, 63, 56, 57, 58, 59, 52, 53, 54, 55, 48, 49,
+                        50, 51, 44, 45, 46, 47, 40, 41, 42, 43, 36, 37, 38, 39,
+                        32, 33, 34, 35, 28, 29, 30, 31, 24, 25, 26, 27, 20, 21,
+                        22, 23, 16, 17, 18, 19, 12, 13, 14, 15, 8, 9, 10, 11,
+                        4, 5, 6, 7, 0, 1, 2, 3,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
                 8 => {
                     // Reverse bytes within each u64: [7,6,5,4,3,2,1,0, ...]
                     let idx = _mm512_set_epi8(
-                        56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50, 51, 52, 53, 54, 55, 40, 41, 42,
-                        43, 44, 45, 46, 47, 32, 33, 34, 35, 36, 37, 38, 39, 24, 25, 26, 27, 28, 29,
-                        30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1,
-                        2, 3, 4, 5, 6, 7,
+                        56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50, 51, 52, 53,
+                        54, 55, 40, 41, 42, 43, 44, 45, 46, 47, 32, 33, 34, 35,
+                        36, 37, 38, 39, 24, 25, 26, 27, 28, 29, 30, 31, 16, 17,
+                        18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15,
+                        0, 1, 2, 3, 4, 5, 6, 7,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
@@ -1904,7 +2117,8 @@ unsafe impl SimdBitwise for Avx512 {
         unsafe {
             // Nibble-lookup to reverse bits within each byte, then reverse bytes for wider lanes
             let nibble_rev = _mm512_broadcast_i32x4(_mm_setr_epi8(
-                0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD, 0x3, 0xB, 0x7, 0xF,
+                0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD,
+                0x3, 0xB, 0x7, 0xF,
             ));
             let lo_mask = _mm512_set1_epi8(0x0Fu8 as i8);
             let hi_mask = _mm512_set1_epi8(0xF0u8 as i8);
@@ -1930,11 +2144,7 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shl<T: IntegerLane>(
-        self,
-        v: V512<T>,
-        bits: V512<T>,
-    ) -> V512<T> {
+    fn shl<T: IntegerLane>(self, v: V512<T>, bits: V512<T>) -> V512<T> {
         unsafe {
             if is_type::<T, u32>() || is_type::<T, i32>() {
                 V512::from_raw(_mm512_sllv_epi32(v.raw, bits.raw))
@@ -1949,7 +2159,10 @@ unsafe impl SimdBitwise for Avx512 {
                 let b_even = _mm512_and_si512(bits.raw, mask_lo);
                 let v_odd = _mm512_srli_epi16(v.raw, 8);
                 let b_odd = _mm512_srli_epi16(bits.raw, 8);
-                let r_even = _mm512_and_si512(_mm512_sllv_epi16(v_even, b_even), mask_lo);
+                let r_even = _mm512_and_si512(
+                    _mm512_sllv_epi16(v_even, b_even),
+                    mask_lo,
+                );
                 let r_odd = _mm512_slli_epi16(
                     _mm512_and_si512(_mm512_sllv_epi16(v_odd, b_odd), mask_lo),
                     8,
@@ -1960,11 +2173,7 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn shr<T: IntegerLane>(
-        self,
-        v: V512<T>,
-        bits: V512<T>,
-    ) -> V512<T> {
+    fn shr<T: IntegerLane>(self, v: V512<T>, bits: V512<T>) -> V512<T> {
         unsafe {
             if is_type::<T, u32>() {
                 V512::from_raw(_mm512_srlv_epi32(v.raw, bits.raw))
@@ -1985,8 +2194,12 @@ unsafe impl SimdBitwise for Avx512 {
                 let b_even = _mm512_and_si512(bits.raw, mask_lo);
                 let v_odd = _mm512_srli_epi16(v.raw, 8);
                 let b_odd = _mm512_srli_epi16(bits.raw, 8);
-                let r_even = _mm512_and_si512(_mm512_srlv_epi16(v_even, b_even), mask_lo);
-                let r_odd = _mm512_slli_epi16(_mm512_srlv_epi16(v_odd, b_odd), 8);
+                let r_even = _mm512_and_si512(
+                    _mm512_srlv_epi16(v_even, b_even),
+                    mask_lo,
+                );
+                let r_odd =
+                    _mm512_slli_epi16(_mm512_srlv_epi16(v_odd, b_odd), 8);
                 V512::from_raw(_mm512_or_si512(r_even, r_odd))
             } else {
                 // i8: even/odd split with arithmetic right shift
@@ -1997,8 +2210,12 @@ unsafe impl SimdBitwise for Avx512 {
                 // Odd bytes are already in the high byte position
                 let v_odd = _mm512_srai_epi16(v.raw, 8);
                 let b_odd = _mm512_srli_epi16(bits.raw, 8);
-                let r_even = _mm512_and_si512(_mm512_srav_epi16(v_even, b_even), mask_lo);
-                let r_odd = _mm512_slli_epi16(_mm512_srav_epi16(v_odd, b_odd), 8);
+                let r_even = _mm512_and_si512(
+                    _mm512_srav_epi16(v_even, b_even),
+                    mask_lo,
+                );
+                let r_odd =
+                    _mm512_slli_epi16(_mm512_srav_epi16(v_odd, b_odd), 8);
                 V512::from_raw(_mm512_or_si512(r_even, r_odd))
             }
         }
@@ -2026,9 +2243,16 @@ unsafe impl SimdBitwise for Avx512 {
                                 result[offset] = va.rotate_right(vb as u32);
                             }
                             2 => {
-                                let va = u16::from_le_bytes([arr_a[offset], arr_a[offset + 1]]);
-                                let vb = u16::from_le_bytes([arr_b[offset], arr_b[offset + 1]]) & 15;
-                                let rb = va.rotate_right(vb as u32).to_le_bytes();
+                                let va = u16::from_le_bytes([
+                                    arr_a[offset],
+                                    arr_a[offset + 1],
+                                ]);
+                                let vb = u16::from_le_bytes([
+                                    arr_b[offset],
+                                    arr_b[offset + 1],
+                                ]) & 15;
+                                let rb =
+                                    va.rotate_right(vb as u32).to_le_bytes();
                                 result[offset] = rb[0];
                                 result[offset + 1] = rb[1];
                             }
@@ -2063,9 +2287,16 @@ unsafe impl SimdBitwise for Avx512 {
                                 result[offset] = va.rotate_left(vb as u32);
                             }
                             2 => {
-                                let va = u16::from_le_bytes([arr_a[offset], arr_a[offset + 1]]);
-                                let vb = u16::from_le_bytes([arr_b[offset], arr_b[offset + 1]]) & 15;
-                                let rb = va.rotate_left(vb as u32).to_le_bytes();
+                                let va = u16::from_le_bytes([
+                                    arr_a[offset],
+                                    arr_a[offset + 1],
+                                ]);
+                                let vb = u16::from_le_bytes([
+                                    arr_b[offset],
+                                    arr_b[offset + 1],
+                                ]) & 15;
+                                let rb =
+                                    va.rotate_left(vb as u32).to_le_bytes();
                                 result[offset] = rb[0];
                                 result[offset + 1] = rb[1];
                             }
@@ -2079,11 +2310,20 @@ unsafe impl SimdBitwise for Avx512 {
     }
 
     #[inline(always)]
-    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V512<T>) -> V512<T> {
+    fn rotate_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: V512<T>,
+    ) -> V512<T> {
         unsafe {
             match T::BYTES {
-                4 => V512::from_raw(_mm512_rolv_epi32(v.raw, _mm512_set1_epi32(BITS as i32))),
-                8 => V512::from_raw(_mm512_rolv_epi64(v.raw, _mm512_set1_epi64(BITS as i64))),
+                4 => V512::from_raw(_mm512_rolv_epi32(
+                    v.raw,
+                    _mm512_set1_epi32(BITS as i32),
+                )),
+                8 => V512::from_raw(_mm512_rolv_epi64(
+                    v.raw,
+                    _mm512_set1_epi64(BITS as i64),
+                )),
                 _ => {
                     let lanes = 64 / T::BYTES;
                     let mut result = [0u8; 64];
@@ -2094,7 +2334,10 @@ unsafe impl SimdBitwise for Avx512 {
                         match T::BYTES {
                             1 => result[offset] = arr[offset].rotate_left(BITS),
                             2 => {
-                                let va = u16::from_le_bytes([arr[offset], arr[offset + 1]]);
+                                let va = u16::from_le_bytes([
+                                    arr[offset],
+                                    arr[offset + 1],
+                                ]);
                                 let rb = va.rotate_left(BITS).to_le_bytes();
                                 result[offset] = rb[0];
                                 result[offset + 1] = rb[1];
@@ -2292,9 +2535,18 @@ unsafe impl SimdMask for Avx512 {
             let zero = _mm512_setzero_si512();
             let bits = match T::BYTES {
                 1 => !_mm512_cmpeq_epi8_mask(v.raw, zero) as u64,
-                2 => !_mm512_cmpeq_epi16_mask(v.raw, zero) as u64 & M512::<T>::all_lanes_mask(),
-                4 => !_mm512_cmpeq_epi32_mask(v.raw, zero) as u64 & M512::<T>::all_lanes_mask(),
-                8 => !_mm512_cmpeq_epi64_mask(v.raw, zero) as u64 & M512::<T>::all_lanes_mask(),
+                2 => {
+                    !_mm512_cmpeq_epi16_mask(v.raw, zero) as u64
+                        & M512::<T>::all_lanes_mask()
+                }
+                4 => {
+                    !_mm512_cmpeq_epi32_mask(v.raw, zero) as u64
+                        & M512::<T>::all_lanes_mask()
+                }
+                8 => {
+                    !_mm512_cmpeq_epi64_mask(v.raw, zero) as u64
+                        & M512::<T>::all_lanes_mask()
+                }
                 _ => unreachable!(),
             };
             M512::from_bits(bits)
@@ -2355,13 +2607,30 @@ unsafe impl SimdMask for Avx512 {
     }
 
     #[inline(always)]
-    fn if_then_else<T: Lane>(self, mask: M512<T>, yes: V512<T>, no: V512<T>) -> V512<T> {
+    fn if_then_else<T: Lane>(
+        self,
+        mask: M512<T>,
+        yes: V512<T>,
+        no: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = match T::BYTES {
-                1 => _mm512_mask_mov_epi8(no.raw, mask.raw as __mmask64, yes.raw),
-                2 => _mm512_mask_mov_epi16(no.raw, mask.raw as __mmask32, yes.raw),
-                4 => _mm512_mask_mov_epi32(no.raw, mask.raw as __mmask16, yes.raw),
-                8 => _mm512_mask_mov_epi64(no.raw, mask.raw as __mmask8, yes.raw),
+                1 => {
+                    _mm512_mask_mov_epi8(no.raw, mask.raw as __mmask64, yes.raw)
+                }
+                2 => _mm512_mask_mov_epi16(
+                    no.raw,
+                    mask.raw as __mmask32,
+                    yes.raw,
+                ),
+                4 => _mm512_mask_mov_epi32(
+                    no.raw,
+                    mask.raw as __mmask16,
+                    yes.raw,
+                ),
+                8 => {
+                    _mm512_mask_mov_epi64(no.raw, mask.raw as __mmask8, yes.raw)
+                }
                 _ => unreachable!(),
             };
             V512::from_raw(raw)
@@ -2369,13 +2638,21 @@ unsafe impl SimdMask for Avx512 {
     }
 
     #[inline(always)]
-    fn if_then_else_zero<T: Lane>(self, mask: M512<T>, yes: V512<T>) -> V512<T> {
+    fn if_then_else_zero<T: Lane>(
+        self,
+        mask: M512<T>,
+        yes: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let zero = _mm512_setzero_si512();
             let raw = match T::BYTES {
                 1 => _mm512_mask_mov_epi8(zero, mask.raw as __mmask64, yes.raw),
-                2 => _mm512_mask_mov_epi16(zero, mask.raw as __mmask32, yes.raw),
-                4 => _mm512_mask_mov_epi32(zero, mask.raw as __mmask16, yes.raw),
+                2 => {
+                    _mm512_mask_mov_epi16(zero, mask.raw as __mmask32, yes.raw)
+                }
+                4 => {
+                    _mm512_mask_mov_epi32(zero, mask.raw as __mmask16, yes.raw)
+                }
                 8 => _mm512_mask_mov_epi64(zero, mask.raw as __mmask8, yes.raw),
                 _ => unreachable!(),
             };
@@ -2455,17 +2732,30 @@ unsafe impl SimdMask for Avx512 {
     }
 
     #[inline(always)]
-    fn if_negative_then_else<T: Lane>(self, v: V512<T>, yes: V512<T>, no: V512<T>) -> V512<T> {
+    fn if_negative_then_else<T: Lane>(
+        self,
+        v: V512<T>,
+        yes: V512<T>,
+        no: V512<T>,
+    ) -> V512<T> {
         unsafe { self.if_then_else(avx512_sign_mask::<T>(v.raw), yes, no) }
     }
 
     #[inline(always)]
-    fn if_negative_then_else_zero<T: Lane>(self, v: V512<T>, yes: V512<T>) -> V512<T> {
+    fn if_negative_then_else_zero<T: Lane>(
+        self,
+        v: V512<T>,
+        yes: V512<T>,
+    ) -> V512<T> {
         unsafe { self.if_then_else_zero(avx512_sign_mask::<T>(v.raw), yes) }
     }
 
     #[inline(always)]
-    fn if_negative_then_zero_else<T: Lane>(self, v: V512<T>, no: V512<T>) -> V512<T> {
+    fn if_negative_then_zero_else<T: Lane>(
+        self,
+        v: V512<T>,
+        no: V512<T>,
+    ) -> V512<T> {
         unsafe { self.if_then_zero_else(avx512_sign_mask::<T>(v.raw), no) }
     }
 }
@@ -2514,9 +2804,9 @@ unsafe impl SimdConvert for Avx512 {
                 }
                 4 => {
                     if is_type::<N, f32>() {
-                        _mm512_castpd_si512(_mm512_cvtps_pd(_mm256_castsi256_ps(
-                            _mm512_castsi512_si256(v.raw),
-                        )))
+                        _mm512_castpd_si512(_mm512_cvtps_pd(
+                            _mm256_castsi256_ps(_mm512_castsi512_si256(v.raw)),
+                        ))
                     } else if is_signed::<N>() {
                         _mm512_cvtepi32_epi64(_mm512_castsi512_si256(v.raw))
                     } else {
@@ -2581,7 +2871,11 @@ unsafe impl SimdConvert for Avx512 {
                     _CMP_GE_OQ,
                 );
                 let converted = _mm512_cvttpd_epi64(v_pd);
-                _mm512_mask_mov_epi64(converted, overflow, _mm512_set1_epi64(i64::MAX))
+                _mm512_mask_mov_epi64(
+                    converted,
+                    overflow,
+                    _mm512_set1_epi64(i64::MAX),
+                )
             };
             V512::from_raw(raw)
         }
@@ -2642,7 +2936,8 @@ unsafe impl SimdConvert for Avx512 {
                         let max_i32 = _mm512_set1_epi32(0x7FFFFFFFu32 as i32);
                         let lo_clamped = _mm512_min_epu32(lo.raw, max_i32);
                         let hi_clamped = _mm512_min_epu32(hi.raw, max_i32);
-                        let packed = _mm512_packus_epi32(lo_clamped, hi_clamped);
+                        let packed =
+                            _mm512_packus_epi32(lo_clamped, hi_clamped);
                         _mm512_permutexvar_epi64(perm, packed)
                     } else {
                         // i32 -> i16
@@ -2656,7 +2951,8 @@ unsafe impl SimdConvert for Avx512 {
                         let max_i16 = _mm512_set1_epi16(0x7FFFu16 as i16);
                         let lo_clamped = _mm512_min_epu16(lo.raw, max_i16);
                         let hi_clamped = _mm512_min_epu16(hi.raw, max_i16);
-                        let packed = _mm512_packus_epi16(lo_clamped, hi_clamped);
+                        let packed =
+                            _mm512_packus_epi16(lo_clamped, hi_clamped);
                         _mm512_permutexvar_epi64(perm, packed)
                     } else {
                         // i16 -> i8
@@ -2669,12 +2965,20 @@ unsafe impl SimdConvert for Avx512 {
                     if is_type::<W, u64>() {
                         let lo_nar = _mm512_cvtusepi64_epi32(lo.raw);
                         let hi_nar = _mm512_cvtusepi64_epi32(hi.raw);
-                        _mm512_inserti64x4(_mm512_castsi256_si512(lo_nar), hi_nar, 1)
+                        _mm512_inserti64x4(
+                            _mm512_castsi256_si512(lo_nar),
+                            hi_nar,
+                            1,
+                        )
                     } else {
                         // i64 -> i32: signed saturating truncate
                         let lo_nar = _mm512_cvtsepi64_epi32(lo.raw);
                         let hi_nar = _mm512_cvtsepi64_epi32(hi.raw);
-                        _mm512_inserti64x4(_mm512_castsi256_si512(lo_nar), hi_nar, 1)
+                        _mm512_inserti64x4(
+                            _mm512_castsi256_si512(lo_nar),
+                            hi_nar,
+                            1,
+                        )
                     }
                 }
                 _ => lo.raw,
@@ -2698,7 +3002,11 @@ unsafe impl SimdConvert for Avx512 {
                 let max_f = _mm512_set1_ps(2147483520.0f32);
                 let clamped = _mm512_min_ps(ps, max_f);
                 let converted = _mm512_cvtps_epi32(clamped);
-                _mm512_mask_mov_epi32(converted, overflow, _mm512_set1_epi32(i32::MAX))
+                _mm512_mask_mov_epi32(
+                    converted,
+                    overflow,
+                    _mm512_set1_epi32(i32::MAX),
+                )
             } else {
                 // f64 -> i64: _mm512_cvtpd_epi64 rounds to nearest.
                 let pd = _mm512_castsi512_pd(v.raw);
@@ -2708,7 +3016,11 @@ unsafe impl SimdConvert for Avx512 {
                     _CMP_GE_OQ,
                 );
                 let converted = _mm512_cvtpd_epi64(pd);
-                _mm512_mask_mov_epi64(converted, overflow, _mm512_set1_epi64(i64::MAX))
+                _mm512_mask_mov_epi64(
+                    converted,
+                    overflow,
+                    _mm512_set1_epi64(i64::MAX),
+                )
             };
             V512::from_raw(raw)
         }
@@ -2771,17 +3083,29 @@ unsafe impl SimdConvert for Avx512 {
             let lo = _mm512_castsi512_si256(v.raw);
             let raw = match N::BYTES {
                 1 => {
-                    if is_type::<N, u8>() { _mm512_cvtepu8_epi16(lo) }
-                    else { _mm512_cvtepi8_epi16(lo) }
+                    if is_type::<N, u8>() {
+                        _mm512_cvtepu8_epi16(lo)
+                    } else {
+                        _mm512_cvtepi8_epi16(lo)
+                    }
                 }
                 2 => {
-                    if is_type::<N, u16>() { _mm512_cvtepu16_epi32(lo) }
-                    else { _mm512_cvtepi16_epi32(lo) }
+                    if is_type::<N, u16>() {
+                        _mm512_cvtepu16_epi32(lo)
+                    } else {
+                        _mm512_cvtepi16_epi32(lo)
+                    }
                 }
                 4 => {
-                    if is_type::<N, u32>() { _mm512_cvtepu32_epi64(lo) }
-                    else if is_type::<N, i32>() { _mm512_cvtepi32_epi64(lo) }
-                    else { _mm512_castpd_si512(_mm512_cvtps_pd(_mm256_castsi256_ps(lo))) }
+                    if is_type::<N, u32>() {
+                        _mm512_cvtepu32_epi64(lo)
+                    } else if is_type::<N, i32>() {
+                        _mm512_cvtepi32_epi64(lo)
+                    } else {
+                        _mm512_castpd_si512(_mm512_cvtps_pd(
+                            _mm256_castsi256_ps(lo),
+                        ))
+                    }
                 }
                 _ => unreachable!(),
             };
@@ -2798,17 +3122,29 @@ unsafe impl SimdConvert for Avx512 {
             let hi = _mm512_extracti64x4_epi64(v.raw, 1);
             let raw = match N::BYTES {
                 1 => {
-                    if is_type::<N, u8>() { _mm512_cvtepu8_epi16(hi) }
-                    else { _mm512_cvtepi8_epi16(hi) }
+                    if is_type::<N, u8>() {
+                        _mm512_cvtepu8_epi16(hi)
+                    } else {
+                        _mm512_cvtepi8_epi16(hi)
+                    }
                 }
                 2 => {
-                    if is_type::<N, u16>() { _mm512_cvtepu16_epi32(hi) }
-                    else { _mm512_cvtepi16_epi32(hi) }
+                    if is_type::<N, u16>() {
+                        _mm512_cvtepu16_epi32(hi)
+                    } else {
+                        _mm512_cvtepi16_epi32(hi)
+                    }
                 }
                 4 => {
-                    if is_type::<N, u32>() { _mm512_cvtepu32_epi64(hi) }
-                    else if is_type::<N, i32>() { _mm512_cvtepi32_epi64(hi) }
-                    else { _mm512_castpd_si512(_mm512_cvtps_pd(_mm256_castsi256_ps(hi))) }
+                    if is_type::<N, u32>() {
+                        _mm512_cvtepu32_epi64(hi)
+                    } else if is_type::<N, i32>() {
+                        _mm512_cvtepi32_epi64(hi)
+                    } else {
+                        _mm512_castpd_si512(_mm512_cvtps_pd(
+                            _mm256_castsi256_ps(hi),
+                        ))
+                    }
                 }
                 _ => unreachable!(),
             };
@@ -2851,19 +3187,25 @@ unsafe impl SimdShuffle for Avx512 {
                     ));
                     let within_lanes = _mm512_shuffle_epi8(v.raw, byte_rev);
                     // Reverse the four 128-bit lanes: 0b_00_01_10_11 = 0x1B
-                    V512::from_raw(_mm512_shuffle_i64x2(within_lanes, within_lanes, 0x1B))
+                    V512::from_raw(_mm512_shuffle_i64x2(
+                        within_lanes,
+                        within_lanes,
+                        0x1B,
+                    ))
                 }
                 2 => {
                     // 32 u16 lanes reversed via permutexvar
                     let idx = _mm512_set_epi16(
-                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-                        21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+                        30, 31,
                     );
                     V512::from_raw(_mm512_permutexvar_epi16(idx, v.raw))
                 }
                 4 => {
-                    let idx =
-                        _mm512_set_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+                    let idx = _mm512_set_epi32(
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                    );
                     V512::from_raw(_mm512_permutexvar_epi32(idx, v.raw))
                 }
                 8 => {
@@ -2894,7 +3236,10 @@ unsafe impl SimdShuffle for Avx512 {
                 _ => {
                     // 1-byte: use VBMI permutexvar_epi8 when available (Ice Lake+).
                     if is_x86_feature_detected!("avx512vbmi") {
-                        V512::from_raw(native_permutexvar_epi8(_mm512_set1_epi8(IDX as i8), v.raw))
+                        V512::from_raw(native_permutexvar_epi8(
+                            _mm512_set1_epi8(IDX as i8),
+                            v.raw,
+                        ))
                     } else {
                         let val: T = self.extract_lane(v, IDX);
                         self.splat(val)
@@ -2943,7 +3288,11 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    fn table_lookup_bytes<T: Lane>(self, table: V512<T>, idx: V512<T>) -> V512<T> {
+    fn table_lookup_bytes<T: Lane>(
+        self,
+        table: V512<T>,
+        idx: V512<T>,
+    ) -> V512<T> {
         // AVX-512BW has vpshufb within 128-bit lanes
         V512::from_raw(unsafe { _mm512_shuffle_epi8(table.raw, idx.raw) })
     }
@@ -2968,10 +3317,12 @@ unsafe impl SimdShuffle for Avx512 {
                 // 8-bit scalar fallback (no VBMI)
                 let lanes = simd::lanes::<T, Avx512>();
                 let mut data: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
-                let mut indices: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                let mut indices: Aligned<A64, [u8; 64]> =
+                    Aligned::new([0u8; 64]);
                 _mm512_store_si512(data.as_mut_ptr().cast(), v.raw);
                 _mm512_store_si512(indices.as_mut_ptr().cast(), idx.raw);
-                let mut result: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                let mut result: Aligned<A64, [u8; 64]> =
+                    Aligned::new([0u8; 64]);
                 for (i, slot) in result.iter_mut().enumerate().take(lanes) {
                     let idx_off = i * I::BYTES;
                     let lane_idx = (indices[idx_off] as usize) % lanes;
@@ -2992,20 +3343,22 @@ unsafe impl SimdShuffle for Avx512 {
                 1 => {
                     // Swap adjacent bytes using vpshufb
                     let idx = _mm512_set_epi8(
-                        62, 63, 60, 61, 58, 59, 56, 57, 54, 55, 52, 53, 50, 51, 48, 49, 46, 47, 44,
-                        45, 42, 43, 40, 41, 38, 39, 36, 37, 34, 35, 32, 33, 30, 31, 28, 29, 26, 27,
-                        24, 25, 22, 23, 20, 21, 18, 19, 16, 17, 14, 15, 12, 13, 10, 11, 8, 9, 6, 7,
-                        4, 5, 2, 3, 0, 1,
+                        62, 63, 60, 61, 58, 59, 56, 57, 54, 55, 52, 53, 50, 51,
+                        48, 49, 46, 47, 44, 45, 42, 43, 40, 41, 38, 39, 36, 37,
+                        34, 35, 32, 33, 30, 31, 28, 29, 26, 27, 24, 25, 22, 23,
+                        20, 21, 18, 19, 16, 17, 14, 15, 12, 13, 10, 11, 8, 9,
+                        6, 7, 4, 5, 2, 3, 0, 1,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
                 2 => {
                     // Swap adjacent u16 pairs using vpshufb
                     let idx = _mm512_set_epi8(
-                        61, 60, 63, 62, 57, 56, 59, 58, 53, 52, 55, 54, 49, 48, 51, 50, 45, 44, 47,
-                        46, 41, 40, 43, 42, 37, 36, 39, 38, 33, 32, 35, 34, 29, 28, 31, 30, 25, 24,
-                        27, 26, 21, 20, 23, 22, 17, 16, 19, 18, 13, 12, 15, 14, 9, 8, 11, 10, 5, 4,
-                        7, 6, 1, 0, 3, 2,
+                        61, 60, 63, 62, 57, 56, 59, 58, 53, 52, 55, 54, 49, 48,
+                        51, 50, 45, 44, 47, 46, 41, 40, 43, 42, 37, 36, 39, 38,
+                        33, 32, 35, 34, 29, 28, 31, 30, 25, 24, 27, 26, 21, 20,
+                        23, 22, 17, 16, 19, 18, 13, 12, 15, 14, 9, 8, 11, 10,
+                        5, 4, 7, 6, 1, 0, 3, 2,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
@@ -3029,20 +3382,22 @@ unsafe impl SimdShuffle for Avx512 {
                 1 => {
                     // Reverse groups of 4 bytes using vpshufb
                     let idx = _mm512_set_epi8(
-                        60, 61, 62, 63, 56, 57, 58, 59, 52, 53, 54, 55, 48, 49, 50, 51, 44, 45, 46,
-                        47, 40, 41, 42, 43, 36, 37, 38, 39, 32, 33, 34, 35, 28, 29, 30, 31, 24, 25,
-                        26, 27, 20, 21, 22, 23, 16, 17, 18, 19, 12, 13, 14, 15, 8, 9, 10, 11, 4, 5,
-                        6, 7, 0, 1, 2, 3,
+                        60, 61, 62, 63, 56, 57, 58, 59, 52, 53, 54, 55, 48, 49,
+                        50, 51, 44, 45, 46, 47, 40, 41, 42, 43, 36, 37, 38, 39,
+                        32, 33, 34, 35, 28, 29, 30, 31, 24, 25, 26, 27, 20, 21,
+                        22, 23, 16, 17, 18, 19, 12, 13, 14, 15, 8, 9, 10, 11,
+                        4, 5, 6, 7, 0, 1, 2, 3,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
                 2 => {
                     // Reverse groups of 4 u16 using vpshufb
                     let idx = _mm512_set_epi8(
-                        57, 56, 59, 58, 61, 60, 63, 62, 49, 48, 51, 50, 53, 52, 55, 54, 41, 40, 43,
-                        42, 45, 44, 47, 46, 33, 32, 35, 34, 37, 36, 39, 38, 25, 24, 27, 26, 29, 28,
-                        31, 30, 17, 16, 19, 18, 21, 20, 23, 22, 9, 8, 11, 10, 13, 12, 15, 14, 1, 0,
-                        3, 2, 5, 4, 7, 6,
+                        57, 56, 59, 58, 61, 60, 63, 62, 49, 48, 51, 50, 53, 52,
+                        55, 54, 41, 40, 43, 42, 45, 44, 47, 46, 33, 32, 35, 34,
+                        37, 36, 39, 38, 25, 24, 27, 26, 29, 28, 31, 30, 17, 16,
+                        19, 18, 21, 20, 23, 22, 9, 8, 11, 10, 13, 12, 15, 14,
+                        1, 0, 3, 2, 5, 4, 7, 6,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
@@ -3066,27 +3421,30 @@ unsafe impl SimdShuffle for Avx512 {
                 1 => {
                     // Reverse groups of 8 bytes using vpshufb
                     let idx = _mm512_set_epi8(
-                        56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50, 51, 52, 53, 54, 55, 40, 41, 42,
-                        43, 44, 45, 46, 47, 32, 33, 34, 35, 36, 37, 38, 39, 24, 25, 26, 27, 28, 29,
-                        30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1,
-                        2, 3, 4, 5, 6, 7,
+                        56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50, 51, 52, 53,
+                        54, 55, 40, 41, 42, 43, 44, 45, 46, 47, 32, 33, 34, 35,
+                        36, 37, 38, 39, 24, 25, 26, 27, 28, 29, 30, 31, 16, 17,
+                        18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15,
+                        0, 1, 2, 3, 4, 5, 6, 7,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
                 2 => {
                     // Reverse 8 u16 within each 128-bit block using vpshufb
                     let idx = _mm512_set_epi8(
-                        49, 48, 51, 50, 53, 52, 55, 54, 57, 56, 59, 58, 61, 60, 63, 62, 33, 32, 35,
-                        34, 37, 36, 39, 38, 41, 40, 43, 42, 45, 44, 47, 46, 17, 16, 19, 18, 21, 20,
-                        23, 22, 25, 24, 27, 26, 29, 28, 31, 30, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11,
-                        10, 13, 12, 15, 14,
+                        49, 48, 51, 50, 53, 52, 55, 54, 57, 56, 59, 58, 61, 60,
+                        63, 62, 33, 32, 35, 34, 37, 36, 39, 38, 41, 40, 43, 42,
+                        45, 44, 47, 46, 17, 16, 19, 18, 21, 20, 23, 22, 25, 24,
+                        27, 26, 29, 28, 31, 30, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8,
+                        11, 10, 13, 12, 15, 14,
                     );
                     V512::from_raw(_mm512_shuffle_epi8(v.raw, idx))
                 }
                 4 => {
                     // Reverse groups of 8 u32: need full-vector permute
-                    let idx =
-                        _mm512_set_epi32(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7);
+                    let idx = _mm512_set_epi32(
+                        8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
+                    );
                     V512::from_raw(_mm512_permutexvar_epi32(idx, v.raw))
                 }
                 8 => {
@@ -3119,8 +3477,10 @@ unsafe impl SimdShuffle for Avx512 {
             match T::BYTES {
                 4 => {
                     // Even lanes: a[0],a[2],a[4],...,a[14],b[0],b[2],...,b[14]
-                    let idx =
-                        _mm512_set_epi32(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
+                    let idx = _mm512_set_epi32(
+                        30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2,
+                        0,
+                    );
                     V512::from_raw(_mm512_permutex2var_epi32(a.raw, idx, b.raw))
                 }
                 8 => {
@@ -3131,8 +3491,9 @@ unsafe impl SimdShuffle for Avx512 {
                 2 => {
                     // Even u16 lanes
                     let idx = _mm512_set_epi16(
-                        62, 60, 58, 56, 54, 52, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 28, 26,
-                        24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0,
+                        62, 60, 58, 56, 54, 52, 50, 48, 46, 44, 42, 40, 38, 36,
+                        34, 32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8,
+                        6, 4, 2, 0,
                     );
                     V512::from_raw(_mm512_permutex2var_epi16(a.raw, idx, b.raw))
                 }
@@ -3157,8 +3518,10 @@ unsafe impl SimdShuffle for Avx512 {
             match T::BYTES {
                 4 => {
                     // Odd lanes: a[1],a[3],...,a[15],b[1],b[3],...,b[15]
-                    let idx =
-                        _mm512_set_epi32(31, 29, 27, 25, 23, 21, 19, 17, 15, 13, 11, 9, 7, 5, 3, 1);
+                    let idx = _mm512_set_epi32(
+                        31, 29, 27, 25, 23, 21, 19, 17, 15, 13, 11, 9, 7, 5, 3,
+                        1,
+                    );
                     V512::from_raw(_mm512_permutex2var_epi32(a.raw, idx, b.raw))
                 }
                 8 => {
@@ -3169,8 +3532,9 @@ unsafe impl SimdShuffle for Avx512 {
                 2 => {
                     // Odd u16 lanes
                     let idx = _mm512_set_epi16(
-                        63, 61, 59, 57, 55, 53, 51, 49, 47, 45, 43, 41, 39, 37, 35, 33, 31, 29, 27,
-                        25, 23, 21, 19, 17, 15, 13, 11, 9, 7, 5, 3, 1,
+                        63, 61, 59, 57, 55, 53, 51, 49, 47, 45, 43, 41, 39, 37,
+                        35, 33, 31, 29, 27, 25, 23, 21, 19, 17, 15, 13, 11, 9,
+                        7, 5, 3, 1,
                     );
                     V512::from_raw(_mm512_permutex2var_epi16(a.raw, idx, b.raw))
                 }
@@ -3195,19 +3559,27 @@ unsafe impl SimdShuffle for Avx512 {
             match T::BYTES {
                 1 => {
                     let mask: __mmask64 = 0xAAAA_AAAA_AAAA_AAAA;
-                    V512::from_raw(_mm512_mask_mov_epi8(even.raw, mask, odd.raw))
+                    V512::from_raw(_mm512_mask_mov_epi8(
+                        even.raw, mask, odd.raw,
+                    ))
                 }
                 2 => {
                     let mask: __mmask32 = 0xAAAA_AAAA;
-                    V512::from_raw(_mm512_mask_mov_epi16(even.raw, mask, odd.raw))
+                    V512::from_raw(_mm512_mask_mov_epi16(
+                        even.raw, mask, odd.raw,
+                    ))
                 }
                 4 => {
                     let mask: __mmask16 = 0xAAAA;
-                    V512::from_raw(_mm512_mask_mov_epi32(even.raw, mask, odd.raw))
+                    V512::from_raw(_mm512_mask_mov_epi32(
+                        even.raw, mask, odd.raw,
+                    ))
                 }
                 8 => {
                     let mask: __mmask8 = 0xAA;
-                    V512::from_raw(_mm512_mask_mov_epi64(even.raw, mask, odd.raw))
+                    V512::from_raw(_mm512_mask_mov_epi64(
+                        even.raw, mask, odd.raw,
+                    ))
                 }
                 _ => unreachable!(),
             }
@@ -3230,9 +3602,11 @@ unsafe impl SimdShuffle for Avx512 {
             };
             match T::BYTES {
                 4 => {
-                    let iota =
-                        _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-                    let idx = _mm512_sub_epi32(iota, _mm512_set1_epi32(n as i32));
+                    let iota = _mm512_set_epi32(
+                        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                    );
+                    let idx =
+                        _mm512_sub_epi32(iota, _mm512_set1_epi32(n as i32));
                     V512::from_raw(_mm512_maskz_permutexvar_epi32(
                         mask_bits as __mmask16,
                         idx,
@@ -3241,7 +3615,8 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 8 => {
                     let iota = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-                    let idx = _mm512_sub_epi64(iota, _mm512_set1_epi64(n as i64));
+                    let idx =
+                        _mm512_sub_epi64(iota, _mm512_set1_epi64(n as i64));
                     V512::from_raw(_mm512_maskz_permutexvar_epi64(
                         mask_bits as __mmask8,
                         idx,
@@ -3250,10 +3625,12 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 2 => {
                     let iota = _mm512_set_epi16(
-                        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13,
-                        12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,
+                        17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2,
+                        1, 0,
                     );
-                    let idx = _mm512_sub_epi16(iota, _mm512_set1_epi16(n as i16));
+                    let idx =
+                        _mm512_sub_epi16(iota, _mm512_set1_epi16(n as i16));
                     V512::from_raw(_mm512_maskz_permutexvar_epi16(
                         mask_bits as __mmask32,
                         idx,
@@ -3263,9 +3640,12 @@ unsafe impl SimdShuffle for Avx512 {
                 _ => {
                     // 1-byte: aligned store + unaligned load (no VBMI)
                     let byte_shift = n * T::BYTES;
-                    let mut buf: Aligned<A64, [u8; 128]> = Aligned::new([0u8; 128]);
+                    let mut buf: Aligned<A64, [u8; 128]> =
+                        Aligned::new([0u8; 128]);
                     _mm512_store_si512(buf.as_mut_ptr().add(64).cast(), v.raw);
-                    V512::from_raw(_mm512_loadu_si512(buf.as_ptr().add(64 - byte_shift).cast()))
+                    V512::from_raw(_mm512_loadu_si512(
+                        buf.as_ptr().add(64 - byte_shift).cast(),
+                    ))
                 }
             }
         }
@@ -3287,9 +3667,11 @@ unsafe impl SimdShuffle for Avx512 {
             };
             match T::BYTES {
                 4 => {
-                    let iota =
-                        _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-                    let idx = _mm512_add_epi32(iota, _mm512_set1_epi32(n as i32));
+                    let iota = _mm512_set_epi32(
+                        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                    );
+                    let idx =
+                        _mm512_add_epi32(iota, _mm512_set1_epi32(n as i32));
                     V512::from_raw(_mm512_maskz_permutexvar_epi32(
                         mask_bits as __mmask16,
                         idx,
@@ -3298,7 +3680,8 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 8 => {
                     let iota = _mm512_set_epi64(7, 6, 5, 4, 3, 2, 1, 0);
-                    let idx = _mm512_add_epi64(iota, _mm512_set1_epi64(n as i64));
+                    let idx =
+                        _mm512_add_epi64(iota, _mm512_set1_epi64(n as i64));
                     V512::from_raw(_mm512_maskz_permutexvar_epi64(
                         mask_bits as __mmask8,
                         idx,
@@ -3307,10 +3690,12 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 2 => {
                     let iota = _mm512_set_epi16(
-                        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13,
-                        12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,
+                        17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2,
+                        1, 0,
                     );
-                    let idx = _mm512_add_epi16(iota, _mm512_set1_epi16(n as i16));
+                    let idx =
+                        _mm512_add_epi16(iota, _mm512_set1_epi16(n as i16));
                     V512::from_raw(_mm512_maskz_permutexvar_epi16(
                         mask_bits as __mmask32,
                         idx,
@@ -3320,9 +3705,12 @@ unsafe impl SimdShuffle for Avx512 {
                 _ => {
                     // 1-byte: aligned store + unaligned load (no VBMI)
                     let byte_shift = n * T::BYTES;
-                    let mut buf: Aligned<A64, [u8; 128]> = Aligned::new([0u8; 128]);
+                    let mut buf: Aligned<A64, [u8; 128]> =
+                        Aligned::new([0u8; 128]);
                     _mm512_store_si512(buf.as_mut_ptr().cast(), v.raw);
-                    V512::from_raw(_mm512_loadu_si512(buf.as_ptr().add(byte_shift).cast()))
+                    V512::from_raw(_mm512_loadu_si512(
+                        buf.as_ptr().add(byte_shift).cast(),
+                    ))
                 }
             }
         }
@@ -3334,30 +3722,46 @@ unsafe impl SimdShuffle for Avx512 {
             match T::BYTES {
                 4 => {
                     if is_type::<T, f32>() {
-                        V512::from_raw(_mm512_castps_si512(_mm512_maskz_compress_ps(
-                            mask.raw as __mmask16,
-                            _mm512_castsi512_ps(v.raw),
-                        )))
+                        V512::from_raw(_mm512_castps_si512(
+                            _mm512_maskz_compress_ps(
+                                mask.raw as __mmask16,
+                                _mm512_castsi512_ps(v.raw),
+                            ),
+                        ))
                     } else {
-                        V512::from_raw(_mm512_maskz_compress_epi32(mask.raw as __mmask16, v.raw))
+                        V512::from_raw(_mm512_maskz_compress_epi32(
+                            mask.raw as __mmask16,
+                            v.raw,
+                        ))
                     }
                 }
                 8 => {
                     if is_type::<T, f64>() {
-                        V512::from_raw(_mm512_castpd_si512(_mm512_maskz_compress_pd(
-                            mask.raw as __mmask8,
-                            _mm512_castsi512_pd(v.raw),
-                        )))
+                        V512::from_raw(_mm512_castpd_si512(
+                            _mm512_maskz_compress_pd(
+                                mask.raw as __mmask8,
+                                _mm512_castsi512_pd(v.raw),
+                            ),
+                        ))
                     } else {
-                        V512::from_raw(_mm512_maskz_compress_epi64(mask.raw as __mmask8, v.raw))
+                        V512::from_raw(_mm512_maskz_compress_epi64(
+                            mask.raw as __mmask8,
+                            v.raw,
+                        ))
                     }
                 }
                 _ => {
                     // Use native VBMI2 compress when available (Ice Lake+).
-                    if T::BYTES == 1 && is_x86_feature_detected!("avx512vbmi2") {
+                    if T::BYTES == 1 && is_x86_feature_detected!("avx512vbmi2")
+                    {
                         V512::from_raw(native_compress_epi8(mask.raw, v.raw))
-                    } else if T::BYTES == 2 && is_x86_feature_detected!("avx512vbmi2") {
-                        V512::from_raw(native_compress_epi16(mask.raw as __mmask32, v.raw))
+                    } else if T::BYTES == 2
+                        && is_x86_feature_detected!("avx512vbmi2")
+                    {
+                        V512::from_raw(native_compress_epi16(
+                            mask.raw as __mmask32,
+                            v.raw,
+                        ))
                     } else if T::BYTES == 2 {
                         // Promote u16->u32, native compress, demote u32->u16
                         let mbits = mask.raw & M512::<T>::all_lanes_mask();
@@ -3367,14 +3771,19 @@ unsafe impl SimdShuffle for Avx512 {
                         let hi_32 = _mm512_cvtepu16_epi32(hi_256);
                         let lo_mask = (mbits & 0xFFFF) as __mmask16;
                         let hi_mask = ((mbits >> 16) & 0xFFFF) as __mmask16;
-                        let lo_comp = _mm512_maskz_compress_epi32(lo_mask, lo_32);
-                        let hi_comp = _mm512_maskz_compress_epi32(hi_mask, hi_32);
+                        let lo_comp =
+                            _mm512_maskz_compress_epi32(lo_mask, lo_32);
+                        let hi_comp =
+                            _mm512_maskz_compress_epi32(hi_mask, hi_32);
                         let lo_cnt = (lo_mask as u32).count_ones() as usize;
                         let lo_nar = _mm512_cvtepi32_epi16(lo_comp); // __m256i
                         let hi_nar = _mm512_cvtepi32_epi16(hi_comp); // __m256i
                         let mut buf = [0u8; 64];
                         _mm256_storeu_si256(buf.as_mut_ptr().cast(), lo_nar);
-                        _mm256_storeu_si256(buf.as_mut_ptr().add(lo_cnt * 2).cast(), hi_nar);
+                        _mm256_storeu_si256(
+                            buf.as_mut_ptr().add(lo_cnt * 2).cast(),
+                            hi_nar,
+                        );
                         V512::from_raw(_mm512_loadu_si512(buf.as_ptr().cast()))
                     } else {
                         // T::BYTES == 1
@@ -3406,8 +3815,14 @@ unsafe impl SimdShuffle for Avx512 {
                         let mut buf = [0u8; 64];
                         _mm_storeu_si128(buf.as_mut_ptr().cast(), n0);
                         _mm_storeu_si128(buf.as_mut_ptr().add(cnt0).cast(), n1);
-                        _mm_storeu_si128(buf.as_mut_ptr().add(cnt0 + cnt1).cast(), n2);
-                        _mm_storeu_si128(buf.as_mut_ptr().add(cnt0 + cnt1 + cnt2).cast(), n3);
+                        _mm_storeu_si128(
+                            buf.as_mut_ptr().add(cnt0 + cnt1).cast(),
+                            n2,
+                        );
+                        _mm_storeu_si128(
+                            buf.as_mut_ptr().add(cnt0 + cnt1 + cnt2).cast(),
+                            n3,
+                        );
                         V512::from_raw(_mm512_loadu_si512(buf.as_ptr().cast()))
                     }
                 }
@@ -3416,7 +3831,12 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn compress_store<T: Lane>(self, v: V512<T>, mask: M512<T>, ptr: *mut T) -> usize {
+    unsafe fn compress_store<T: Lane>(
+        self,
+        v: V512<T>,
+        mask: M512<T>,
+        ptr: *mut T,
+    ) -> usize {
         unsafe {
             let mbits = mask.raw & M512::<T>::all_lanes_mask();
             let count = mbits.count_ones() as usize;
@@ -3429,7 +3849,11 @@ unsafe impl SimdShuffle for Avx512 {
                             _mm512_castsi512_ps(v.raw),
                         );
                     } else {
-                        _mm512_mask_compressstoreu_epi32(ptr.cast(), mask.raw as __mmask16, v.raw);
+                        _mm512_mask_compressstoreu_epi32(
+                            ptr.cast(),
+                            mask.raw as __mmask16,
+                            v.raw,
+                        );
                     }
                 }
                 8 => {
@@ -3440,20 +3864,34 @@ unsafe impl SimdShuffle for Avx512 {
                             _mm512_castsi512_pd(v.raw),
                         );
                     } else {
-                        _mm512_mask_compressstoreu_epi64(ptr.cast(), mask.raw as __mmask8, v.raw);
+                        _mm512_mask_compressstoreu_epi64(
+                            ptr.cast(),
+                            mask.raw as __mmask8,
+                            v.raw,
+                        );
                     }
                 }
                 _ => {
                     // Use native VBMI2 compress-store when available (Ice Lake+).
-                    if T::BYTES == 1 && is_x86_feature_detected!("avx512vbmi2") {
+                    if T::BYTES == 1 && is_x86_feature_detected!("avx512vbmi2")
+                    {
                         native_compressstoreu_epi8(ptr.cast(), mask.raw, v.raw);
-                    } else if T::BYTES == 2 && is_x86_feature_detected!("avx512vbmi2") {
-                        native_compressstoreu_epi16(ptr.cast(), mask.raw as __mmask32, v.raw);
+                    } else if T::BYTES == 2
+                        && is_x86_feature_detected!("avx512vbmi2")
+                    {
+                        native_compressstoreu_epi16(
+                            ptr.cast(),
+                            mask.raw as __mmask32,
+                            v.raw,
+                        );
                     } else {
                         // Promote->compress->demote via self.compress(), then copy
                         let compressed = self.compress(v, mask);
                         let mut buf = [0u8; 64];
-                        _mm512_storeu_si512(buf.as_mut_ptr().cast(), compressed.raw);
+                        _mm512_storeu_si512(
+                            buf.as_mut_ptr().cast(),
+                            compressed.raw,
+                        );
                         core::ptr::copy_nonoverlapping(
                             buf.as_ptr(),
                             ptr.cast::<u8>(),
@@ -3472,9 +3910,9 @@ unsafe impl SimdShuffle for Avx512 {
             match T::BYTES {
                 4 => {
                     if is_type::<T, f32>() {
-                        V512::from_raw(_mm512_castps_si512(
-                            _mm512_moveldup_ps(_mm512_castsi512_ps(v.raw)),
-                        ))
+                        V512::from_raw(_mm512_castps_si512(_mm512_moveldup_ps(
+                            _mm512_castsi512_ps(v.raw),
+                        )))
                     } else {
                         // 0xA0 = 0b10_10_00_00 => [0,0,2,2] within each 128-bit lane
                         V512::from_raw(_mm512_shuffle_epi32(v.raw, 0xA0))
@@ -3482,9 +3920,9 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 8 => {
                     if is_type::<T, f64>() {
-                        V512::from_raw(_mm512_castpd_si512(
-                            _mm512_movedup_pd(_mm512_castsi512_pd(v.raw)),
-                        ))
+                        V512::from_raw(_mm512_castpd_si512(_mm512_movedup_pd(
+                            _mm512_castsi512_pd(v.raw),
+                        )))
                     } else {
                         V512::from_raw(_mm512_unpacklo_epi64(v.raw, v.raw))
                     }
@@ -3493,7 +3931,8 @@ unsafe impl SimdShuffle for Avx512 {
                     // Duplicate even u16: mask even lanes, shift left 16, OR
                     let mask = _mm512_set1_epi32(0x0000FFFF_u32 as i32);
                     let even = _mm512_and_si512(v.raw, mask);
-                    let dup = _mm512_or_si512(even, _mm512_slli_epi32(even, 16));
+                    let dup =
+                        _mm512_or_si512(even, _mm512_slli_epi32(even, 16));
                     V512::from_raw(dup)
                 }
                 1 => {
@@ -3514,29 +3953,29 @@ unsafe impl SimdShuffle for Avx512 {
             match T::BYTES {
                 4 => {
                     if is_type::<T, f32>() {
-                        V512::from_raw(_mm512_castps_si512(
-                            _mm512_movehdup_ps(_mm512_castsi512_ps(v.raw)),
-                        ))
+                        V512::from_raw(_mm512_castps_si512(_mm512_movehdup_ps(
+                            _mm512_castsi512_ps(v.raw),
+                        )))
                     } else {
                         // 0xF5 = 0b11_11_01_01 => [1,1,3,3] within each 128-bit lane
                         V512::from_raw(_mm512_shuffle_epi32(v.raw, 0xF5))
                     }
                 }
-                8 => {
-                    V512::from_raw(_mm512_unpackhi_epi64(v.raw, v.raw))
-                }
+                8 => V512::from_raw(_mm512_unpackhi_epi64(v.raw, v.raw)),
                 2 => {
                     // Duplicate odd u16: shift right 16 to get odd into even, OR with original masked
                     let odd = _mm512_srli_epi32(v.raw, 16);
                     let mask = _mm512_set1_epi32(0xFFFF0000_u32 as i32);
-                    let dup = _mm512_or_si512(odd, _mm512_and_si512(v.raw, mask));
+                    let dup =
+                        _mm512_or_si512(odd, _mm512_and_si512(v.raw, mask));
                     V512::from_raw(dup)
                 }
                 1 => {
                     // Duplicate odd u8: shift right 8 to get odd into even, OR with original masked
                     let odd = _mm512_srli_epi16(v.raw, 8);
                     let mask = _mm512_set1_epi16(0xFF00_u16 as i16);
-                    let dup = _mm512_or_si512(odd, _mm512_and_si512(v.raw, mask));
+                    let dup =
+                        _mm512_or_si512(odd, _mm512_and_si512(v.raw, mask));
                     V512::from_raw(dup)
                 }
                 _ => unreachable!(),
@@ -3545,38 +3984,34 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    fn concat_lower_lower<T: Lane>(
-        self,
-        hi: V512<T>,
-        lo: V512<T>,
-    ) -> V512<T> {
+    fn concat_lower_lower<T: Lane>(self, hi: V512<T>, lo: V512<T>) -> V512<T> {
         // Lower 256 bits of lo in low, lower 256 bits of hi in high
         // 0x44 = 0b01_00_01_00: selects q0,q1 from lo (first src) and q0,q1 from hi (second src)
-        unsafe {
-            V512::from_raw(_mm512_shuffle_i64x2(lo.raw, hi.raw, 0x44))
-        }
+        unsafe { V512::from_raw(_mm512_shuffle_i64x2(lo.raw, hi.raw, 0x44)) }
     }
 
     #[inline(always)]
-    fn concat_upper_upper<T: Lane>(
-        self,
-        hi: V512<T>,
-        lo: V512<T>,
-    ) -> V512<T> {
+    fn concat_upper_upper<T: Lane>(self, hi: V512<T>, lo: V512<T>) -> V512<T> {
         // Upper 256 bits of lo in low, upper 256 bits of hi in high
         // 0xEE = 0b11_10_11_10: selects q2,q3 from lo (first src) and q2,q3 from hi (second src)
-        unsafe {
-            V512::from_raw(_mm512_shuffle_i64x2(lo.raw, hi.raw, 0xEE))
-        }
+        unsafe { V512::from_raw(_mm512_shuffle_i64x2(lo.raw, hi.raw, 0xEE)) }
     }
 
     #[inline(always)]
     fn slide_1_up<T: Lane>(self, v: V512<T>) -> V512<T> {
         unsafe {
             if T::BYTES == 4 {
-                V512::from_raw(_mm512_alignr_epi32(v.raw, _mm512_setzero_si512(), 15))
+                V512::from_raw(_mm512_alignr_epi32(
+                    v.raw,
+                    _mm512_setzero_si512(),
+                    15,
+                ))
             } else if T::BYTES == 8 {
-                V512::from_raw(_mm512_alignr_epi64(v.raw, _mm512_setzero_si512(), 7))
+                V512::from_raw(_mm512_alignr_epi64(
+                    v.raw,
+                    _mm512_setzero_si512(),
+                    7,
+                ))
             } else {
                 // Byte-level fallback for 1/2-byte lanes
                 let byte_shift = T::BYTES;
@@ -3657,9 +4092,11 @@ unsafe impl SimdShuffle for Avx512 {
                 _ => {
                     // u8/i8/u16/i16: scalar fallback
                     let lanes = 64 / T::BYTES;
-                    let mut src: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                    let mut src: Aligned<A64, [u8; 64]> =
+                        Aligned::new([0u8; 64]);
                     _mm512_store_si512(src.as_mut_ptr().cast(), v.raw);
-                    let mut result: Aligned<A64, [u8; 64]> = Aligned::new([0u8; 64]);
+                    let mut result: Aligned<A64, [u8; 64]> =
+                        Aligned::new([0u8; 64]);
                     let mbits = mask.raw & M512::<T>::all_lanes_mask();
                     let mut src_idx = 0usize;
                     for i in 0..lanes {
@@ -3727,11 +4164,7 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    fn odd_even_blocks<T: Lane>(
-        self,
-        odd: V512<T>,
-        even: V512<T>,
-    ) -> V512<T> {
+    fn odd_even_blocks<T: Lane>(self, odd: V512<T>, even: V512<T>) -> V512<T> {
         // AVX-512: 4 blocks. Blocks 0,2 from even; blocks 1,3 from odd.
         // Use _mm512_mask_blend_epi64 with mask 0x33:
         // bits: 0b00110011 -> lanes 0,1,4,5 (blocks 0,2) from even; 2,3,6,7 (blocks 1,3) from odd.
@@ -3743,9 +4176,7 @@ unsafe impl SimdShuffle for Avx512 {
     #[inline(always)]
     fn reverse_blocks<T: Lane>(self, v: V512<T>) -> V512<T> {
         // Reverse 4 * 128-bit blocks: 0x1B = 0b00_01_10_11 -> block order 3,2,1,0.
-        unsafe {
-            V512::from_raw(_mm512_shuffle_i32x4(v.raw, v.raw, 0x1B))
-        }
+        unsafe { V512::from_raw(_mm512_shuffle_i32x4(v.raw, v.raw, 0x1B)) }
     }
 
     #[inline(always)]
@@ -3774,7 +4205,11 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn compress_bits<T: Lane>(self, v: V512<T>, bits: *const u8) -> V512<T> {
+    unsafe fn compress_bits<T: Lane>(
+        self,
+        v: V512<T>,
+        bits: *const u8,
+    ) -> V512<T> {
         unsafe {
             let lanes = 64 / T::BYTES;
             let mut mask_bits: u64 = 0;
@@ -3792,7 +4227,12 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    unsafe fn compress_bits_store<T: Lane>(self, v: V512<T>, bits: *const u8, ptr: *mut T) -> usize {
+    unsafe fn compress_bits_store<T: Lane>(
+        self,
+        v: V512<T>,
+        bits: *const u8,
+        ptr: *mut T,
+    ) -> usize {
         unsafe {
             let lanes = 64 / T::BYTES;
             let mut mask_bits: u64 = 0;
@@ -3819,12 +4259,18 @@ unsafe impl SimdShuffle for Avx512 {
     #[inline(always)]
     fn upper_half<T: Lane>(self, v: V512<T>) -> crate::backend::avx2::V256<T> {
         unsafe {
-            crate::backend::avx2::V256::from_raw(_mm512_extracti64x4_epi64(v.raw, 1))
+            crate::backend::avx2::V256::from_raw(_mm512_extracti64x4_epi64(
+                v.raw, 1,
+            ))
         }
     }
 
     #[inline(always)]
-    fn combine<T: Lane>(self, lo: crate::backend::avx2::V256<T>, hi: crate::backend::avx2::V256<T>) -> V512<T> {
+    fn combine<T: Lane>(
+        self,
+        lo: crate::backend::avx2::V256<T>,
+        hi: crate::backend::avx2::V256<T>,
+    ) -> V512<T> {
         unsafe {
             let lo512 = _mm512_castsi256_si512(lo.raw());
             V512::from_raw(_mm512_inserti64x4(lo512, hi.raw(), 1))
@@ -3832,7 +4278,11 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    fn insert_block<T: Lane, const IDX: usize>(self, v: V512<T>, blk: crate::backend::avx2::V256<T>) -> V512<T> {
+    fn insert_block<T: Lane, const IDX: usize>(
+        self,
+        v: V512<T>,
+        blk: crate::backend::avx2::V256<T>,
+    ) -> V512<T> {
         unsafe {
             if IDX == 0 {
                 V512::from_raw(_mm512_inserti64x4(v.raw, blk.raw(), 0))
@@ -3843,18 +4293,29 @@ unsafe impl SimdShuffle for Avx512 {
     }
 
     #[inline(always)]
-    fn extract_block<T: Lane, const IDX: usize>(self, v: V512<T>) -> crate::backend::avx2::V256<T> {
+    fn extract_block<T: Lane, const IDX: usize>(
+        self,
+        v: V512<T>,
+    ) -> crate::backend::avx2::V256<T> {
         unsafe {
             if IDX == 0 {
-                crate::backend::avx2::V256::from_raw(_mm512_castsi512_si256(v.raw))
+                crate::backend::avx2::V256::from_raw(_mm512_castsi512_si256(
+                    v.raw,
+                ))
             } else {
-                crate::backend::avx2::V256::from_raw(_mm512_extracti64x4_epi64(v.raw, 1))
+                crate::backend::avx2::V256::from_raw(_mm512_extracti64x4_epi64(
+                    v.raw, 1,
+                ))
             }
         }
     }
 
     #[inline(always)]
-    fn interleave_whole_lower<T: Lane>(self, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn interleave_whole_lower<T: Lane>(
+        self,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         // Whole-vector (cross-block) interleave of the lower halves:
         // result[2i] = a[i], result[2i+1] = b[i] for i in 0..N/2.
         // The 2-block ConcatLowerLower fallback is WRONG for 512-bit (4 blocks),
@@ -3871,15 +4332,21 @@ unsafe impl SimdShuffle for Avx512 {
                 let sa = i * T::BYTES;
                 let da = (2 * i) * T::BYTES;
                 let db = (2 * i + 1) * T::BYTES;
-                result[da..da + T::BYTES].copy_from_slice(&arr_a[sa..sa + T::BYTES]);
-                result[db..db + T::BYTES].copy_from_slice(&arr_b[sa..sa + T::BYTES]);
+                result[da..da + T::BYTES]
+                    .copy_from_slice(&arr_a[sa..sa + T::BYTES]);
+                result[db..db + T::BYTES]
+                    .copy_from_slice(&arr_b[sa..sa + T::BYTES]);
             }
             V512::from_raw(_mm512_loadu_si512(result.as_ptr().cast()))
         }
     }
 
     #[inline(always)]
-    fn interleave_whole_upper<T: Lane>(self, a: V512<T>, b: V512<T>) -> V512<T> {
+    fn interleave_whole_upper<T: Lane>(
+        self,
+        a: V512<T>,
+        b: V512<T>,
+    ) -> V512<T> {
         // Whole-vector interleave of the upper halves:
         // result[2i] = a[N/2+i], result[2i+1] = b[N/2+i] for i in 0..N/2.
         unsafe {
@@ -3894,8 +4361,10 @@ unsafe impl SimdShuffle for Avx512 {
                 let sa = (half + i) * T::BYTES;
                 let da = (2 * i) * T::BYTES;
                 let db = (2 * i + 1) * T::BYTES;
-                result[da..da + T::BYTES].copy_from_slice(&arr_a[sa..sa + T::BYTES]);
-                result[db..db + T::BYTES].copy_from_slice(&arr_b[sa..sa + T::BYTES]);
+                result[da..da + T::BYTES]
+                    .copy_from_slice(&arr_a[sa..sa + T::BYTES]);
+                result[db..db + T::BYTES]
+                    .copy_from_slice(&arr_b[sa..sa + T::BYTES]);
             }
             V512::from_raw(_mm512_loadu_si512(result.as_ptr().cast()))
         }
@@ -3978,17 +4447,38 @@ unsafe impl SimdShuffle for Avx512 {
                     let idx_off = i * I::BYTES;
                     let lane_idx: usize = match I::BYTES {
                         1 => arr_idx[idx_off] as usize,
-                        2 => u16::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1]]) as usize,
-                        4 => u32::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3]]) as usize,
-                        _ => u64::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3], arr_idx[idx_off+4], arr_idx[idx_off+5], arr_idx[idx_off+6], arr_idx[idx_off+7]]) as usize,
+                        2 => u16::from_le_bytes([
+                            arr_idx[idx_off],
+                            arr_idx[idx_off + 1],
+                        ]) as usize,
+                        4 => u32::from_le_bytes([
+                            arr_idx[idx_off],
+                            arr_idx[idx_off + 1],
+                            arr_idx[idx_off + 2],
+                            arr_idx[idx_off + 3],
+                        ]) as usize,
+                        _ => u64::from_le_bytes([
+                            arr_idx[idx_off],
+                            arr_idx[idx_off + 1],
+                            arr_idx[idx_off + 2],
+                            arr_idx[idx_off + 3],
+                            arr_idx[idx_off + 4],
+                            arr_idx[idx_off + 5],
+                            arr_idx[idx_off + 6],
+                            arr_idx[idx_off + 7],
+                        ]) as usize,
                     };
                     let dst_off = i * T::BYTES;
                     if lane_idx < lanes {
                         let src_off = lane_idx * T::BYTES;
-                        result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_a[src_off..src_off+T::BYTES]);
+                        result[dst_off..dst_off + T::BYTES].copy_from_slice(
+                            &arr_a[src_off..src_off + T::BYTES],
+                        );
                     } else if lane_idx < 2 * lanes {
                         let src_off = (lane_idx - lanes) * T::BYTES;
-                        result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_b[src_off..src_off+T::BYTES]);
+                        result[dst_off..dst_off + T::BYTES].copy_from_slice(
+                            &arr_b[src_off..src_off + T::BYTES],
+                        );
                     }
                 }
                 V512::from_raw(_mm512_loadu_si512(result.as_ptr().cast()))
@@ -4013,9 +4503,26 @@ unsafe impl SimdShuffle for Avx512 {
                 let idx_off = i * I::BYTES;
                 let lane_idx_signed: i64 = match I::BYTES {
                     1 => arr_idx[idx_off] as i8 as i64,
-                    2 => i16::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1]]) as i64,
-                    4 => i32::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3]]) as i64,
-                    _ => i64::from_le_bytes([arr_idx[idx_off], arr_idx[idx_off+1], arr_idx[idx_off+2], arr_idx[idx_off+3], arr_idx[idx_off+4], arr_idx[idx_off+5], arr_idx[idx_off+6], arr_idx[idx_off+7]]),
+                    2 => i16::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                    ]) as i64,
+                    4 => i32::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                    ]) as i64,
+                    _ => i64::from_le_bytes([
+                        arr_idx[idx_off],
+                        arr_idx[idx_off + 1],
+                        arr_idx[idx_off + 2],
+                        arr_idx[idx_off + 3],
+                        arr_idx[idx_off + 4],
+                        arr_idx[idx_off + 5],
+                        arr_idx[idx_off + 6],
+                        arr_idx[idx_off + 7],
+                    ]),
                 };
                 let dst_off = i * T::BYTES;
                 if lane_idx_signed < 0 || lane_idx_signed as usize >= lanes {
@@ -4024,7 +4531,8 @@ unsafe impl SimdShuffle for Avx512 {
                     }
                 } else {
                     let src_off = (lane_idx_signed as usize) * T::BYTES;
-                    result[dst_off..dst_off+T::BYTES].copy_from_slice(&arr_v[src_off..src_off+T::BYTES]);
+                    result[dst_off..dst_off + T::BYTES]
+                        .copy_from_slice(&arr_v[src_off..src_off + T::BYTES]);
                 }
             }
             V512::from_raw(_mm512_loadu_si512(result.as_ptr().cast()))
@@ -4303,11 +4811,7 @@ unsafe impl SimdReduce for Avx512 {
     }
 
     #[inline(always)]
-    fn sums_of_8_abs_diff(
-        self,
-        a: V512<u8>,
-        b: V512<u8>,
-    ) -> V512<u64> {
+    fn sums_of_8_abs_diff(self, a: V512<u8>, b: V512<u8>) -> V512<u64> {
         V512::from_raw(unsafe { _mm512_sad_epu8(a.raw, b.raw) })
     }
 
@@ -4322,7 +4826,8 @@ unsafe impl SimdReduce for Avx512 {
                     // u8/i8 -> u16/i16: pairwise add adjacent bytes
                     if is_signed::<T>() {
                         // Sign-extend even bytes, sign-extend odd bytes, add as i16
-                        let even = _mm512_srai_epi16(_mm512_slli_epi16(v.raw, 8), 8);
+                        let even =
+                            _mm512_srai_epi16(_mm512_slli_epi16(v.raw, 8), 8);
                         let odd = _mm512_srai_epi16(v.raw, 8);
                         _mm512_add_epi16(even, odd)
                     } else {
@@ -4349,25 +4854,34 @@ unsafe impl SimdReduce for Avx512 {
                         // f32 -> f64: add even and odd pairs
                         let ps = _mm512_castsi512_ps(v.raw);
                         // Even indices: 0,2,4,6,8,10,12,14 -> lower 8 f32
-                        let idx_even =
-                            _mm512_set_epi32(0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0);
-                        let idx_odd =
-                            _mm512_set_epi32(0, 0, 0, 0, 0, 0, 0, 0, 15, 13, 11, 9, 7, 5, 3, 1);
+                        let idx_even = _mm512_set_epi32(
+                            0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 10, 8, 6, 4, 2, 0,
+                        );
+                        let idx_odd = _mm512_set_epi32(
+                            0, 0, 0, 0, 0, 0, 0, 0, 15, 13, 11, 9, 7, 5, 3, 1,
+                        );
                         let even = _mm512_permutexvar_ps(idx_even, ps);
                         let odd = _mm512_permutexvar_ps(idx_odd, ps);
                         // Convert lower 8 f32 to f64 and add
-                        let even_pd = _mm512_cvtps_pd(_mm512_castps512_ps256(even));
-                        let odd_pd = _mm512_cvtps_pd(_mm512_castps512_ps256(odd));
+                        let even_pd =
+                            _mm512_cvtps_pd(_mm512_castps512_ps256(even));
+                        let odd_pd =
+                            _mm512_cvtps_pd(_mm512_castps512_ps256(odd));
                         _mm512_castpd_si512(_mm512_add_pd(even_pd, odd_pd))
                     } else if is_signed::<T>() {
                         // i32 -> i64: sign-extend even and odd, add
-                        let even = _mm512_and_si512(v.raw, _mm512_set1_epi64(0x00000000FFFFFFFF_u64 as i64));
-                        let even_ext = _mm512_srai_epi64(_mm512_slli_epi64(even, 32), 32);
+                        let even = _mm512_and_si512(
+                            v.raw,
+                            _mm512_set1_epi64(0x00000000FFFFFFFF_u64 as i64),
+                        );
+                        let even_ext =
+                            _mm512_srai_epi64(_mm512_slli_epi64(even, 32), 32);
                         let odd_ext = _mm512_srai_epi64(v.raw, 32);
                         _mm512_add_epi64(even_ext, odd_ext)
                     } else {
                         // u32 -> u64: zero-extend even and odd, add
-                        let mask = _mm512_set1_epi64(0x00000000FFFFFFFF_u64 as i64);
+                        let mask =
+                            _mm512_set1_epi64(0x00000000FFFFFFFF_u64 as i64);
                         let even = _mm512_and_si512(v.raw, mask);
                         let odd = _mm512_srli_epi64(v.raw, 32);
                         _mm512_add_epi64(even, odd)
@@ -4417,13 +4931,13 @@ unsafe impl SimdFloat for Avx512 {
     fn approx_reciprocal<T: FloatLane>(self, v: V512<T>) -> V512<T> {
         unsafe {
             if T::BYTES == 4 {
-                V512::from_raw(_mm512_castps_si512(_mm512_rcp14_ps(_mm512_castsi512_ps(
-                    v.raw,
-                ))))
+                V512::from_raw(_mm512_castps_si512(_mm512_rcp14_ps(
+                    _mm512_castsi512_ps(v.raw),
+                )))
             } else {
-                V512::from_raw(_mm512_castpd_si512(_mm512_rcp14_pd(_mm512_castsi512_pd(
-                    v.raw,
-                ))))
+                V512::from_raw(_mm512_castpd_si512(_mm512_rcp14_pd(
+                    _mm512_castsi512_pd(v.raw),
+                )))
             }
         }
     }
@@ -4432,13 +4946,13 @@ unsafe impl SimdFloat for Avx512 {
     fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V512<T>) -> V512<T> {
         unsafe {
             if T::BYTES == 4 {
-                V512::from_raw(_mm512_castps_si512(_mm512_rsqrt14_ps(_mm512_castsi512_ps(
-                    v.raw,
-                ))))
+                V512::from_raw(_mm512_castps_si512(_mm512_rsqrt14_ps(
+                    _mm512_castsi512_ps(v.raw),
+                )))
             } else {
-                V512::from_raw(_mm512_castpd_si512(_mm512_rsqrt14_pd(_mm512_castsi512_pd(
-                    v.raw,
-                ))))
+                V512::from_raw(_mm512_castpd_si512(_mm512_rsqrt14_pd(
+                    _mm512_castsi512_pd(v.raw),
+                )))
             }
         }
     }
@@ -4516,7 +5030,12 @@ unsafe impl SimdFloat for Avx512 {
     }
 
     #[inline(always)]
-    fn mul_add<T: FloatLane>(self, a: V512<T>, b: V512<T>, c: V512<T>) -> V512<T> {
+    fn mul_add<T: FloatLane>(
+        self,
+        a: V512<T>,
+        b: V512<T>,
+        c: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm512_castps_si512(_mm512_fmadd_ps(
@@ -4536,7 +5055,12 @@ unsafe impl SimdFloat for Avx512 {
     }
 
     #[inline(always)]
-    fn neg_mul_add<T: FloatLane>(self, a: V512<T>, b: V512<T>, c: V512<T>) -> V512<T> {
+    fn neg_mul_add<T: FloatLane>(
+        self,
+        a: V512<T>,
+        b: V512<T>,
+        c: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm512_castps_si512(_mm512_fnmadd_ps(
@@ -4556,7 +5080,12 @@ unsafe impl SimdFloat for Avx512 {
     }
 
     #[inline(always)]
-    fn mul_sub<T: FloatLane>(self, a: V512<T>, b: V512<T>, c: V512<T>) -> V512<T> {
+    fn mul_sub<T: FloatLane>(
+        self,
+        a: V512<T>,
+        b: V512<T>,
+        c: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm512_castps_si512(_mm512_fmsub_ps(
@@ -4576,7 +5105,12 @@ unsafe impl SimdFloat for Avx512 {
     }
 
     #[inline(always)]
-    fn neg_mul_sub<T: FloatLane>(self, a: V512<T>, b: V512<T>, c: V512<T>) -> V512<T> {
+    fn neg_mul_sub<T: FloatLane>(
+        self,
+        a: V512<T>,
+        b: V512<T>,
+        c: V512<T>,
+    ) -> V512<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm512_castps_si512(_mm512_fnmsub_ps(
@@ -4604,7 +5138,8 @@ unsafe impl SimdFloat for Avx512 {
                 let sign_bit = _mm512_and_si512(sign_mask, sign.raw);
                 V512::from_raw(_mm512_or_si512(abs_mag, sign_bit))
             } else {
-                let sign_mask = _mm512_set1_epi64(0x8000_0000_0000_0000u64 as i64);
+                let sign_mask =
+                    _mm512_set1_epi64(0x8000_0000_0000_0000u64 as i64);
                 let abs_mag = _mm512_andnot_si512(sign_mask, mag.raw);
                 let sign_bit = _mm512_and_si512(sign_mask, sign.raw);
                 V512::from_raw(_mm512_or_si512(abs_mag, sign_bit))
@@ -4635,8 +5170,10 @@ unsafe impl SimdFloat for Avx512 {
                 let abs_v = _mm512_and_si512(v.raw, abs_mask);
                 _mm512_cmpeq_epi32_mask(abs_v, inf_bits) as u64
             } else {
-                let abs_mask = _mm512_set1_epi64(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
-                let inf_bits = _mm512_set1_epi64(0x7FF0_0000_0000_0000u64 as i64);
+                let abs_mask =
+                    _mm512_set1_epi64(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
+                let inf_bits =
+                    _mm512_set1_epi64(0x7FF0_0000_0000_0000u64 as i64);
                 let abs_v = _mm512_and_si512(v.raw, abs_mask);
                 _mm512_cmpeq_epi64_mask(abs_v, inf_bits) as u64
             };
@@ -4663,14 +5200,16 @@ unsafe impl SimdFloat for Avx512 {
         unsafe {
             let bits = if T::BYTES == 4 {
                 // Exponent < 0xFF means finite.
-                let shifted = _mm512_srli_epi32(_mm512_slli_epi32(v.raw, 1), 24);
+                let shifted =
+                    _mm512_srli_epi32(_mm512_slli_epi32(v.raw, 1), 24);
                 let max_exp = _mm512_set1_epi32(0xFF);
                 // cmplt unsigned: cmplt_epu32 not available, but both values are small,
                 // so signed cmpgt works.
                 _mm512_cmpgt_epi32_mask(max_exp, shifted) as u64
             } else {
                 // f64: exponent < 0x7FF means finite.
-                let abs_mask = _mm512_set1_epi64(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
+                let abs_mask =
+                    _mm512_set1_epi64(0x7FFF_FFFF_FFFF_FFFFu64 as i64);
                 let abs_v = _mm512_and_si512(v.raw, abs_mask);
                 let inf = _mm512_set1_epi64(0x7FF0_0000_0000_0000u64 as i64);
                 // abs_v < inf iff finite. Use cmpgt_epi64(inf, abs_v).
@@ -4683,11 +5222,7 @@ unsafe impl SimdFloat for Avx512 {
     }
 
     #[inline(always)]
-    fn add_sub<T: FloatLane>(
-        self,
-        a: V512<T>,
-        b: V512<T>,
-    ) -> V512<T> {
+    fn add_sub<T: FloatLane>(self, a: V512<T>, b: V512<T>) -> V512<T> {
         // AVX-512 has no _mm512_addsub. Compose: OddEven(Add(a,b), Sub(a,b)).
         unsafe {
             let raw = if T::BYTES == 4 {
@@ -4783,7 +5318,11 @@ macro_rules! avx512_aes_per_block {
             let r3 = $aes_intrinsic(s3, k3);
             let lo = _mm256_inserti128_si256(_mm256_castsi128_si256(r0), r1, 1);
             let hi = _mm256_inserti128_si256(_mm256_castsi128_si256(r2), r3, 1);
-            V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1))
+            V512::from_raw(_mm512_inserti64x4(
+                _mm512_castsi256_si512(lo),
+                hi,
+                1,
+            ))
         } else {
             let mut b0 = [0u8; 16];
             let mut b1 = [0u8; 16];
@@ -4811,7 +5350,11 @@ macro_rules! avx512_aes_per_block {
             let r3 = _mm_loadu_si128(b3.as_ptr().cast());
             let lo = _mm256_inserti128_si256(_mm256_castsi128_si256(r0), r1, 1);
             let hi = _mm256_inserti128_si256(_mm256_castsi128_si256(r2), r3, 1);
-            V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1))
+            V512::from_raw(_mm512_inserti64x4(
+                _mm512_castsi256_si512(lo),
+                hi,
+                1,
+            ))
         }
     }};
 }
@@ -4821,23 +5364,48 @@ macro_rules! avx512_aes_per_block {
 unsafe impl crate::ops::SimdCrypto for Avx512 {
     #[inline(always)]
     fn aes_round(self, state: V512<u8>, round_key: V512<u8>) -> V512<u8> {
-        unsafe { avx512_aes_per_block!(state, round_key, _mm_aesenc_si128, aes_round) }
+        unsafe {
+            avx512_aes_per_block!(state, round_key, _mm_aesenc_si128, aes_round)
+        }
     }
 
     #[inline(always)]
     fn aes_last_round(self, state: V512<u8>, round_key: V512<u8>) -> V512<u8> {
-        unsafe { avx512_aes_per_block!(state, round_key, _mm_aesenclast_si128, aes_last_round) }
+        unsafe {
+            avx512_aes_per_block!(
+                state,
+                round_key,
+                _mm_aesenclast_si128,
+                aes_last_round
+            )
+        }
     }
 
     #[inline(always)]
     fn aes_round_inv(self, state: V512<u8>, round_key: V512<u8>) -> V512<u8> {
-        unsafe { avx512_aes_per_block!(state, round_key, _mm_aesdec_si128, aes_round_inv) }
+        unsafe {
+            avx512_aes_per_block!(
+                state,
+                round_key,
+                _mm_aesdec_si128,
+                aes_round_inv
+            )
+        }
     }
 
     #[inline(always)]
-    fn aes_last_round_inv(self, state: V512<u8>, round_key: V512<u8>) -> V512<u8> {
+    fn aes_last_round_inv(
+        self,
+        state: V512<u8>,
+        round_key: V512<u8>,
+    ) -> V512<u8> {
         unsafe {
-            avx512_aes_per_block!(state, round_key, _mm_aesdeclast_si128, aes_last_round_inv)
+            avx512_aes_per_block!(
+                state,
+                round_key,
+                _mm_aesdeclast_si128,
+                aes_last_round_inv
+            )
         }
     }
 
@@ -4858,7 +5426,8 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
                 }
             } else {
                 for i in (0..8).step_by(2) {
-                    let (lo, hi) = super::crypto_soft::clmul_64(arr_a[i], arr_b[i]);
+                    let (lo, hi) =
+                        super::crypto_soft::clmul_64(arr_a[i], arr_b[i]);
                     arr_a[i] = lo;
                     arr_a[i + 1] = hi;
                 }
@@ -4883,7 +5452,10 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
                 }
             } else {
                 for i in (0..8).step_by(2) {
-                    let (lo, hi) = super::crypto_soft::clmul_64(arr_a[i + 1], arr_b[i + 1]);
+                    let (lo, hi) = super::crypto_soft::clmul_64(
+                        arr_a[i + 1],
+                        arr_b[i + 1],
+                    );
                     arr_a[i] = lo;
                     arr_a[i + 1] = hi;
                 }
@@ -4904,9 +5476,15 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
                 let r1 = _mm_aeskeygenassist_si128(s1, RCON);
                 let r2 = _mm_aeskeygenassist_si128(s2, RCON);
                 let r3 = _mm_aeskeygenassist_si128(s3, RCON);
-                let lo = _mm256_inserti128_si256(_mm256_castsi128_si256(r0), r1, 1);
-                let hi = _mm256_inserti128_si256(_mm256_castsi128_si256(r2), r3, 1);
-                V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1))
+                let lo =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(r0), r1, 1);
+                let hi =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(r2), r3, 1);
+                V512::from_raw(_mm512_inserti64x4(
+                    _mm512_castsi256_si512(lo),
+                    hi,
+                    1,
+                ))
             } else {
                 let mut b0 = [0u8; 16];
                 let mut b1 = [0u8; 16];
@@ -4916,17 +5494,27 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
                 _mm_storeu_si128(b1.as_mut_ptr().cast(), s1);
                 _mm_storeu_si128(b2.as_mut_ptr().cast(), s2);
                 _mm_storeu_si128(b3.as_mut_ptr().cast(), s3);
-                let r0 = super::crypto_soft::aes_key_gen_assist(&b0, RCON as u8);
-                let r1 = super::crypto_soft::aes_key_gen_assist(&b1, RCON as u8);
-                let r2 = super::crypto_soft::aes_key_gen_assist(&b2, RCON as u8);
-                let r3 = super::crypto_soft::aes_key_gen_assist(&b3, RCON as u8);
+                let r0 =
+                    super::crypto_soft::aes_key_gen_assist(&b0, RCON as u8);
+                let r1 =
+                    super::crypto_soft::aes_key_gen_assist(&b1, RCON as u8);
+                let r2 =
+                    super::crypto_soft::aes_key_gen_assist(&b2, RCON as u8);
+                let r3 =
+                    super::crypto_soft::aes_key_gen_assist(&b3, RCON as u8);
                 let v0 = _mm_loadu_si128(r0.as_ptr().cast());
                 let v1 = _mm_loadu_si128(r1.as_ptr().cast());
                 let v2 = _mm_loadu_si128(r2.as_ptr().cast());
                 let v3 = _mm_loadu_si128(r3.as_ptr().cast());
-                let lo = _mm256_inserti128_si256(_mm256_castsi128_si256(v0), v1, 1);
-                let hi = _mm256_inserti128_si256(_mm256_castsi128_si256(v2), v3, 1);
-                V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1))
+                let lo =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(v0), v1, 1);
+                let hi =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(v2), v3, 1);
+                V512::from_raw(_mm512_inserti64x4(
+                    _mm512_castsi256_si512(lo),
+                    hi,
+                    1,
+                ))
             }
         }
     }
@@ -4943,9 +5531,15 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
                 let r1 = _mm_aesimc_si128(s1);
                 let r2 = _mm_aesimc_si128(s2);
                 let r3 = _mm_aesimc_si128(s3);
-                let lo = _mm256_inserti128_si256(_mm256_castsi128_si256(r0), r1, 1);
-                let hi = _mm256_inserti128_si256(_mm256_castsi128_si256(r2), r3, 1);
-                V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1))
+                let lo =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(r0), r1, 1);
+                let hi =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(r2), r3, 1);
+                V512::from_raw(_mm512_inserti64x4(
+                    _mm512_castsi256_si512(lo),
+                    hi,
+                    1,
+                ))
             } else {
                 let mut b0 = [0u8; 16];
                 let mut b1 = [0u8; 16];
@@ -4963,9 +5557,15 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
                 let v1 = _mm_loadu_si128(b1.as_ptr().cast());
                 let v2 = _mm_loadu_si128(b2.as_ptr().cast());
                 let v3 = _mm_loadu_si128(b3.as_ptr().cast());
-                let lo = _mm256_inserti128_si256(_mm256_castsi128_si256(v0), v1, 1);
-                let hi = _mm256_inserti128_si256(_mm256_castsi128_si256(v2), v3, 1);
-                V512::from_raw(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1))
+                let lo =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(v0), v1, 1);
+                let hi =
+                    _mm256_inserti128_si256(_mm256_castsi128_si256(v2), v3, 1);
+                V512::from_raw(_mm512_inserti64x4(
+                    _mm512_castsi256_si512(lo),
+                    hi,
+                    1,
+                ))
             }
         }
     }

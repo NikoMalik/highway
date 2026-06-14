@@ -28,7 +28,8 @@ pub struct AlignedAlloc<const ALIGN: usize = 128>;
 unsafe impl<const ALIGN: usize> Allocator for AlignedAlloc<ALIGN> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         let align = layout.align().max(ALIGN);
-        let layout = Layout::from_size_align(layout.size(), align).map_err(|_| AllocError)?;
+        let layout = Layout::from_size_align(layout.size(), align)
+            .map_err(|_| AllocError)?;
         // SAFETY: layout is valid (size > 0 guaranteed by caller or we handle zero-size).
         if layout.size() == 0 {
             // Return a dangling pointer for zero-size allocations.
@@ -56,7 +57,8 @@ unsafe impl<const ALIGN: usize> Allocator for AlignedAlloc<ALIGN> {
 /// A `Vec` type alias that uses `AlignedAlloc` for over-aligned allocation.
 ///
 /// The default alignment is 128 bytes.
-pub type AlignedVec<T, const ALIGN: usize = 128> = allocator_api2::vec::Vec<T, AlignedAlloc<ALIGN>>;
+pub type AlignedVec<T, const ALIGN: usize = 128> =
+    allocator_api2::vec::Vec<T, AlignedAlloc<ALIGN>>;
 
 /// Create a new empty `AlignedVec` with default alignment.
 pub fn aligned_vec<T>() -> AlignedVec<T, 128> {
@@ -92,7 +94,8 @@ mod tests {
 
     #[test]
     fn test_custom_alignment() {
-        let mut v: AlignedVec<u8, 64> = AlignedVec::with_capacity_in(256, AlignedAlloc::<64>);
+        let mut v: AlignedVec<u8, 64> =
+            AlignedVec::with_capacity_in(256, AlignedAlloc::<64>);
         v.push(42);
         let ptr = v.as_ptr() as usize;
         assert_eq!(ptr % 64, 0, "pointer should be 64-byte aligned");

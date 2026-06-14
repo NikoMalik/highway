@@ -10,7 +10,9 @@
 /// Implementations must be plain-old-data types with size equal to `BYTES`.
 /// `Unsigned` must be the unsigned integer type of the same width, used for
 /// bitwise/mask representations.
-pub unsafe trait Lane: Copy + Default + PartialEq + PartialOrd + 'static {
+pub unsafe trait Lane:
+    Copy + Default + PartialEq + PartialOrd + 'static
+{
     /// Size of this lane type in bytes.
     const BYTES: usize = core::mem::size_of::<Self>();
 
@@ -98,11 +100,11 @@ macro_rules! impl_lane {
     };
 }
 
-impl_lane!(u8,  u8,  0);
+impl_lane!(u8, u8, 0);
 impl_lane!(u16, u16, 1);
 impl_lane!(u32, u32, 2);
 impl_lane!(u64, u64, 3);
-impl_lane!(i8,  u8,  4);
+impl_lane!(i8, u8, 4);
 impl_lane!(i16, u16, 5);
 impl_lane!(i32, u32, 6);
 impl_lane!(i64, u64, 7);

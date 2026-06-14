@@ -1,10 +1,14 @@
-#![allow(unused_unsafe, clippy::undocumented_unsafe_blocks, clippy::type_complexity)]
+#![allow(
+    unused_unsafe,
+    clippy::undocumented_unsafe_blocks,
+    clippy::type_complexity
+)]
 //! Cross-target consistency tests.
 //!
 //! Verifies that all available SIMD targets produce identical results
 //! for the same inputs. Tests exercise dispatch and per-target correctness.
 
-use highway::{dispatch, dispatch_to, simd_fn, SimdOps, TargetId, WithSimd};
+use highway::{SimdOps, TargetId, WithSimd, dispatch, dispatch_to, simd_fn};
 
 #[cfg(feature = "alloc")]
 use highway::{aligned_vec_from_slice, aligned_vec_with_capacity};
@@ -340,7 +344,8 @@ impl WithSimd for ShiftKernel<'_> {
 #[test]
 fn test_shift_cross_target() {
     let n = 32;
-    let input: Vec<u32> = (0..n as u32).map(|i| 0xABCD_0000 | (i * 17)).collect();
+    let input: Vec<u32> =
+        (0..n as u32).map(|i| 0xABCD_0000 | (i * 17)).collect();
     let exp_shl: Vec<u32> = input.iter().map(|x| x << 4).collect();
     let exp_shr: Vec<u32> = input.iter().map(|x| x >> 4).collect();
 
@@ -397,7 +402,11 @@ fn test_saturating_add_u8_cross_target() {
     let n = 64;
     let a: Vec<u8> = (0..n as u8).map(|i| 200u8.wrapping_add(i)).collect();
     let b: Vec<u8> = (0..n as u8).map(|i| 100u8.wrapping_add(i * 3)).collect();
-    let expected: Vec<u8> = a.iter().zip(&b).map(|(x, y)| x.saturating_add(*y)).collect();
+    let expected: Vec<u8> = a
+        .iter()
+        .zip(&b)
+        .map(|(x, y)| x.saturating_add(*y))
+        .collect();
 
     for target in available_targets() {
         let mut out = vec![0u8; n];
@@ -640,7 +649,8 @@ fn test_mul_i16_cross_target() {
     let n = 32;
     let a: Vec<i16> = (0..n as i16).map(|i| i - 10).collect();
     let b: Vec<i16> = (0..n as i16).map(|i| i * 2 + 1).collect();
-    let expected: Vec<i16> = a.iter().zip(&b).map(|(x, y)| x.wrapping_mul(*y)).collect();
+    let expected: Vec<i16> =
+        a.iter().zip(&b).map(|(x, y)| x.wrapping_mul(*y)).collect();
 
     for target in available_targets() {
         let mut out = vec![0i16; n];
@@ -693,7 +703,8 @@ fn test_add_u64_cross_target() {
     let n = 16;
     let a: Vec<u64> = (0..n).map(|i| i as u64 * 1_000_000_007).collect();
     let b: Vec<u64> = (0..n).map(|i| i as u64 * 998_244_353 + 1).collect();
-    let expected: Vec<u64> = a.iter().zip(&b).map(|(x, y)| x.wrapping_add(*y)).collect();
+    let expected: Vec<u64> =
+        a.iter().zip(&b).map(|(x, y)| x.wrapping_add(*y)).collect();
 
     for target in available_targets() {
         let mut out = vec![0u64; n];
@@ -747,7 +758,8 @@ fn test_abs_diff_f64_cross_target() {
     let n = 16;
     let a: Vec<f64> = (0..n).map(|i| i as f64 * 1.5 - 10.0).collect();
     let b: Vec<f64> = (0..n).map(|i| i as f64 * 0.5 + 2.0).collect();
-    let expected: Vec<f64> = a.iter().zip(&b).map(|(x, y)| (x - y).abs()).collect();
+    let expected: Vec<f64> =
+        a.iter().zip(&b).map(|(x, y)| (x - y).abs()).collect();
 
     for target in available_targets() {
         let mut out = vec![0f64; n];
@@ -808,8 +820,11 @@ impl WithSimd for AlignedAddKernel<'_> {
 #[cfg(feature = "alloc")]
 #[test]
 fn test_aligned_load_store() {
-    let a = aligned_vec_from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
-    let b = aligned_vec_from_slice(&[10.0f32, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]);
+    let a =
+        aligned_vec_from_slice(&[1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    let b = aligned_vec_from_slice(&[
+        10.0f32, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0,
+    ]);
     let mut out = aligned_vec_with_capacity::<f32>(8);
     out.resize(8, 0.0);
 
@@ -833,7 +848,11 @@ fn test_aligned_load_store() {
             target,
         );
         let expected: Vec<f32> = a.iter().zip(&b).map(|(x, y)| x + y).collect();
-        assert_eq!(&out[..], &expected[..], "aligned add failed for {target:?}");
+        assert_eq!(
+            &out[..],
+            &expected[..],
+            "aligned add failed for {target:?}"
+        );
     }
 }
 
@@ -873,12 +892,10 @@ impl WithSimd for AbsDiffU32Kernel<'_> {
 fn test_abs_diff_u32_cross_target() {
     let n = 32;
     let a: Vec<u32> = (0..n as u32).map(|i| i * 3).collect();
-    let b: Vec<u32> = (0..n as u32).map(|i| 50u32.wrapping_sub(i * 2)).collect();
-    let expected: Vec<u32> = a
-        .iter()
-        .zip(&b)
-        .map(|(x, y)| x.abs_diff(*y))
-        .collect();
+    let b: Vec<u32> =
+        (0..n as u32).map(|i| 50u32.wrapping_sub(i * 2)).collect();
+    let expected: Vec<u32> =
+        a.iter().zip(&b).map(|(x, y)| x.abs_diff(*y)).collect();
 
     for target in available_targets() {
         let mut out = vec![0u32; n];
@@ -934,7 +951,8 @@ fn test_clamp_i32_cross_target() {
     let input: Vec<i32> = (0..n as i32).map(|i| i * 5 - 60).collect();
     let lo = -20i32;
     let hi = 50i32;
-    let expected: Vec<i32> = input.iter().map(|x| *x.max(&lo).min(&hi)).collect();
+    let expected: Vec<i32> =
+        input.iter().map(|x| *x.max(&lo).min(&hi)).collect();
 
     for target in available_targets() {
         let mut out = vec![0i32; n];
@@ -1094,7 +1112,10 @@ fn test_mask_ops_cross_target() {
 
     let targets = available_targets();
     // Group by vector width and verify consistency within each group
-    let mut results: Vec<(TargetId, (u64, Option<usize>, Option<usize>, usize))> = Vec::new();
+    let mut results: Vec<(
+        TargetId,
+        (u64, Option<usize>, Option<usize>, usize),
+    )> = Vec::new();
     for target in &targets {
         let r = dispatch_to(
             MaskOpsKernel {
@@ -1245,8 +1266,16 @@ fn test_compress_u32_cross_target() {
         // Verify: the first `count` elements should be the even values
         let lanes = dispatch_to(U32Lanes, target);
         // Only the first `lanes` values from input are processed
-        let expected_evens: Vec<u32> = input[..lanes].iter().copied().filter(|x| x % 2 == 0).collect();
-        assert_eq!(count, expected_evens.len(), "compress count wrong for {target:?}");
+        let expected_evens: Vec<u32> = input[..lanes]
+            .iter()
+            .copied()
+            .filter(|x| x % 2 == 0)
+            .collect();
+        assert_eq!(
+            count,
+            expected_evens.len(),
+            "compress count wrong for {target:?}"
+        );
         assert_eq!(
             &out[..count],
             &expected_evens[..],
@@ -1349,7 +1378,9 @@ impl WithSimd for ReverseLaneBytesU32Kernel<'_> {
 #[test]
 fn test_reverse_lane_bytes_u32_cross_target() {
     let n = 16;
-    let input: Vec<u32> = (0..n as u32).map(|i| 0x01_02_03_04u32.wrapping_add(i * 0x11_11_11_11)).collect();
+    let input: Vec<u32> = (0..n as u32)
+        .map(|i| 0x01_02_03_04u32.wrapping_add(i * 0x11_11_11_11))
+        .collect();
     let expected: Vec<u32> = input.iter().map(|x| x.swap_bytes()).collect();
 
     for target in available_targets() {
@@ -1361,7 +1392,10 @@ fn test_reverse_lane_bytes_u32_cross_target() {
             },
             target,
         );
-        assert_eq!(out, expected, "reverse_lane_bytes u32 failed for {target:?}");
+        assert_eq!(
+            out, expected,
+            "reverse_lane_bytes u32 failed for {target:?}"
+        );
     }
 }
 
@@ -1407,10 +1441,7 @@ fn test_xor_mask_cross_target() {
     let b: Vec<i32> = (0..n).map(|i: i32| 5 - i).collect();
 
     for target in available_targets() {
-        let result = dispatch_to(
-            XorMaskKernel { a: &a, b: &b },
-            target,
-        );
+        let result = dispatch_to(XorMaskKernel { a: &a, b: &b }, target);
         // Verify XOR semantics: true iff exactly one of (a>0, b>0) is true
         for (i, &xor_val) in result.iter().enumerate() {
             let a_pos = a[i] > 0;
@@ -1492,7 +1523,7 @@ fn test_odd_even_u32_cross_target() {
 // ---------------------------------------------------------------------------
 
 struct LoadDup128Kernel<'a> {
-    input: &'a [u32],  // at least 4 elements (128 bits)
+    input: &'a [u32], // at least 4 elements (128 bits)
     out: &'a mut [u32],
 }
 

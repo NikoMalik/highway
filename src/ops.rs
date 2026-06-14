@@ -15,7 +15,9 @@ use std::ops::{Deref, DerefMut};
 /// (`extract_lane`/`insert_lane`) are `unsafe`; safe slice-based wrappers
 /// (`load_slice`/`store_slice`/`load_aligned_slice`/`store_aligned_slice`) cover
 /// the common cases.
-use crate::lane::{FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane};
+use crate::lane::{
+    FloatLane, IntegerLane, Lane, NarrowLane, UnsignedLane, WideLane,
+};
 use crate::simd::Simd;
 
 // ---------------------------------------------------------------------------
@@ -49,7 +51,12 @@ pub unsafe trait SimdCore: Simd {
     ///
     /// # Safety
     /// `index` must be less than the number of lanes.
-    unsafe fn insert_lane<T: Lane>(self, v: Self::Vec<T>, index: usize, value: T) -> Self::Vec<T>;
+    unsafe fn insert_lane<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        index: usize,
+        value: T,
+    ) -> Self::Vec<T>;
 
     /// Returns a vector where lane `i` contains `base + i` (converted to `T`).
     fn iota<T: Lane>(self, base: T) -> Self::Vec<T>;
@@ -91,10 +98,19 @@ pub unsafe trait SimdMemory: Simd {
     unsafe fn load_dup128<T: Lane>(self, ptr: *const T) -> Self::Vec<T>;
 
     /// Load from `ptr` where mask is true; zero where false.
-    unsafe fn masked_load<T: Lane>(self, mask: Self::Mask<T>, ptr: *const T) -> Self::Vec<T>;
+    unsafe fn masked_load<T: Lane>(
+        self,
+        mask: Self::Mask<T>,
+        ptr: *const T,
+    ) -> Self::Vec<T>;
 
     /// Store lanes of `v` to `ptr` where mask is true; leave other memory unchanged.
-    unsafe fn blended_store<T: Lane>(self, v: Self::Vec<T>, mask: Self::Mask<T>, ptr: *mut T);
+    unsafe fn blended_store<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        mask: Self::Mask<T>,
+        ptr: *mut T,
+    );
 
     /// Gather: load non-contiguous elements using per-lane i32 indices.
     /// `result[i] = base[idx[i]]`
@@ -162,7 +178,11 @@ pub unsafe trait SimdMemory: Simd {
 
     /// Load from compressed stream and expand to masked positions.
     /// Inverse of compress_store.
-    unsafe fn load_expand<T: Lane>(self, mask: Self::Mask<T>, ptr: *const T) -> Self::Vec<T>;
+    unsafe fn load_expand<T: Lane>(
+        self,
+        mask: Self::Mask<T>,
+        ptr: *const T,
+    ) -> Self::Vec<T>;
 
     /// Safe, bounds-checked load of one full vector from the start of `src`.
     ///
@@ -462,15 +482,25 @@ pub unsafe trait SimdArith: Simd {
     fn mul<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Lane-wise division (float only).
-    fn div<T: FloatLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn div<T: FloatLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Saturating addition for integer lanes.
-    fn saturated_add<T: IntegerLane>(self, a: Self::Vec<T>, b: Self::Vec<T>)
-    -> Self::Vec<T>;
+    fn saturated_add<T: IntegerLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Saturating subtraction for integer lanes.
-    fn saturated_sub<T: IntegerLane>(self, a: Self::Vec<T>, b: Self::Vec<T>)
-    -> Self::Vec<T>;
+    fn saturated_sub<T: IntegerLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Absolute value (signed integers and floats).
     fn abs<T: Lane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
@@ -485,7 +515,11 @@ pub unsafe trait SimdArith: Simd {
     fn max<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
 
     /// High half of multiplication for integer lanes.
-    fn mul_high<T: IntegerLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn mul_high<T: IntegerLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Averaging (rounding) addition: `(a + b + 1) >> 1`.
     fn average_round<T: UnsignedLane>(
@@ -495,7 +529,11 @@ pub unsafe trait SimdArith: Simd {
     ) -> Self::Vec<T>;
 
     /// Absolute difference: `|a - b|` for unsigned types, or `max(a,b) - min(a,b)`.
-    fn abs_diff<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn abs_diff<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Clamp each lane to `[lo, hi]`: `min(max(v, lo), hi)`.
     fn clamp<T: Lane>(
@@ -507,12 +545,20 @@ pub unsafe trait SimdArith: Simd {
 
     /// Multiply even-indexed lanes (0, 2, ...) producing double-width results.
     /// Input is `T` (narrow), output is `T::Wide`.
-    fn mul_even<T: NarrowLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T::Wide>
+    fn mul_even<T: NarrowLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T::Wide>
     where
         T::Wide: Lane;
 
     /// Multiply odd-indexed lanes (1, 3, ...) producing double-width results.
-    fn mul_odd<T: NarrowLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T::Wide>
+    fn mul_odd<T: NarrowLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T::Wide>
     where
         T::Wide: Lane;
 
@@ -623,41 +669,70 @@ pub unsafe trait SimdBitwise: Simd {
     fn not<T: Lane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Bitwise AND-NOT: `!a & b`.
-    fn and_not<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn and_not<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>)
+    -> Self::Vec<T>;
 
     /// Shift each lane left by a compile-time constant.
-    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn shift_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Shift each lane right by a compile-time constant.
     /// Arithmetic for signed types, logical for unsigned.
-    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn shift_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Rotate each lane right by a compile-time constant.
-    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn rotate_right<T: IntegerLane, const BITS: u32>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Shift each lane left by a runtime amount (same shift for all lanes).
-    fn shift_left_same<T: IntegerLane>(self, v: Self::Vec<T>, bits: u32) -> Self::Vec<T>;
+    fn shift_left_same<T: IntegerLane>(
+        self,
+        v: Self::Vec<T>,
+        bits: u32,
+    ) -> Self::Vec<T>;
 
     /// Shift each lane right by a runtime amount (same shift for all lanes).
-    fn shift_right_same<T: IntegerLane>(self, v: Self::Vec<T>, bits: u32) -> Self::Vec<T>;
+    fn shift_right_same<T: IntegerLane>(
+        self,
+        v: Self::Vec<T>,
+        bits: u32,
+    ) -> Self::Vec<T>;
 
     /// Shift the entire vector left by `BYTES` bytes (within each 128-bit block).
     /// New bytes are zero-filled from the right.
-    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Shift the entire vector right by `BYTES` bytes (within each 128-bit block).
     /// New bytes are zero-filled from the left.
-    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: Self::Vec<T>)
-    -> Self::Vec<T>;
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Count the number of set bits in each lane.
     fn population_count<T: IntegerLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Count leading zeros in each lane.
-    fn leading_zero_count<T: IntegerLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn leading_zero_count<T: IntegerLane>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Count trailing zeros in each lane.
-    fn trailing_zero_count<T: IntegerLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn trailing_zero_count<T: IntegerLane>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Reverse the byte order within each lane (byte-swap / endian swap).
     fn reverse_lane_bytes<T: Lane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
@@ -695,11 +770,17 @@ pub unsafe trait SimdBitwise: Simd {
     ) -> Self::Vec<T>;
 
     /// Rotate each lane left by a compile-time constant.
-    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn rotate_left<T: IntegerLane, const BITS: u32>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Broadcast the sign bit of each lane: all-ones if negative, all-zeros otherwise.
     /// Equivalent to an arithmetic right shift by `bits - 1`.
-    fn broadcast_sign_bit<T: IntegerLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn broadcast_sign_bit<T: IntegerLane>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 }
 
 // ---------------------------------------------------------------------------
@@ -730,7 +811,11 @@ pub unsafe trait SimdCompare: Simd {
     fn ge<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Mask<T>;
 
     /// Test if the given bit position is set in each lane.
-    fn test_bit<T: IntegerLane>(self, v: Self::Vec<T>, bit: Self::Vec<T>) -> Self::Mask<T>;
+    fn test_bit<T: IntegerLane>(
+        self,
+        v: Self::Vec<T>,
+        bit: Self::Vec<T>,
+    ) -> Self::Mask<T>;
 }
 
 // ---------------------------------------------------------------------------
@@ -786,16 +871,28 @@ pub unsafe trait SimdMask: Simd {
     ) -> Self::Vec<T>;
 
     /// Logical AND of two masks.
-    fn and_mask<T: Lane>(self, a: Self::Mask<T>, b: Self::Mask<T>) -> Self::Mask<T>;
+    fn and_mask<T: Lane>(
+        self,
+        a: Self::Mask<T>,
+        b: Self::Mask<T>,
+    ) -> Self::Mask<T>;
 
     /// Logical OR of two masks.
-    fn or_mask<T: Lane>(self, a: Self::Mask<T>, b: Self::Mask<T>) -> Self::Mask<T>;
+    fn or_mask<T: Lane>(
+        self,
+        a: Self::Mask<T>,
+        b: Self::Mask<T>,
+    ) -> Self::Mask<T>;
 
     /// Logical NOT of a mask.
     fn not_mask<T: Lane>(self, m: Self::Mask<T>) -> Self::Mask<T>;
 
     /// Logical XOR of two masks.
-    fn xor_mask<T: Lane>(self, a: Self::Mask<T>, b: Self::Mask<T>) -> Self::Mask<T>;
+    fn xor_mask<T: Lane>(
+        self,
+        a: Self::Mask<T>,
+        b: Self::Mask<T>,
+    ) -> Self::Mask<T>;
 
     /// Index of the last true lane, or `None`.
     fn find_last_true<T: Lane>(self, m: Self::Mask<T>) -> Option<usize>;
@@ -804,7 +901,11 @@ pub unsafe trait SimdMask: Simd {
     fn bits_from_mask<T: Lane>(self, m: Self::Mask<T>) -> u64;
 
     /// XNOR for masks: true where both are true OR both are false.
-    fn exclusive_neither<T: Lane>(self, a: Self::Mask<T>, b: Self::Mask<T>) -> Self::Mask<T>;
+    fn exclusive_neither<T: Lane>(
+        self,
+        a: Self::Mask<T>,
+        b: Self::Mask<T>,
+    ) -> Self::Mask<T>;
 
     /// Shift mask up by one position, filling lane 0 with false.
     fn slide_mask_1_up<T: Lane>(self, mask: Self::Mask<T>) -> Self::Mask<T>;
@@ -855,10 +956,14 @@ pub unsafe trait SimdConvert: Simd {
         W::Narrow: Lane;
 
     /// Convert between same-width float/int (e.g. f32 -> i32, i32 -> f32).
-    fn convert_to_int<F: FloatLane>(self, v: Self::Vec<F>) -> Self::Vec<F::Int>;
+    fn convert_to_int<F: FloatLane>(self, v: Self::Vec<F>)
+    -> Self::Vec<F::Int>;
 
     /// Convert from int to float.
-    fn convert_to_float<F: FloatLane>(self, v: Self::Vec<F::Int>) -> Self::Vec<F>;
+    fn convert_to_float<F: FloatLane>(
+        self,
+        v: Self::Vec<F::Int>,
+    ) -> Self::Vec<F>;
 
     /// Truncate wide lanes to narrow lanes (keep low bits, no saturation).
     fn truncate_to<W: WideLane>(self, v: Self::Vec<W>) -> Self::Vec<W::Narrow>
@@ -891,20 +996,32 @@ pub unsafe trait SimdConvert: Simd {
         W::Narrow: Lane;
 
     /// Demote assuming values are in range (no saturation check).
-    fn demote_in_range_to<W: WideLane>(self, v: Self::Vec<W>) -> Self::Vec<W::Narrow>
+    fn demote_in_range_to<W: WideLane>(
+        self,
+        v: Self::Vec<W>,
+    ) -> Self::Vec<W::Narrow>
     where
         W::Narrow: Lane;
 
     /// Convert float to int same-width, assuming values are in range (no overflow check).
-    fn convert_in_range_to_int<F: FloatLane>(self, v: Self::Vec<F>) -> Self::Vec<F::Int>;
+    fn convert_in_range_to_int<F: FloatLane>(
+        self,
+        v: Self::Vec<F>,
+    ) -> Self::Vec<F::Int>;
 
     /// Promote the lower half lanes from narrow to wide type.
-    fn promote_lower_to<N: NarrowLane>(self, v: Self::Vec<N>) -> Self::Vec<N::Wide>
+    fn promote_lower_to<N: NarrowLane>(
+        self,
+        v: Self::Vec<N>,
+    ) -> Self::Vec<N::Wide>
     where
         N::Wide: Lane;
 
     /// Promote the upper half lanes from narrow to wide type.
-    fn promote_upper_to<N: NarrowLane>(self, v: Self::Vec<N>) -> Self::Vec<N::Wide>
+    fn promote_upper_to<N: NarrowLane>(
+        self,
+        v: Self::Vec<N>,
+    ) -> Self::Vec<N::Wide>
     where
         N::Wide: Lane;
 
@@ -933,19 +1050,38 @@ pub unsafe trait SimdShuffle: Simd {
     fn reverse<T: Lane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Broadcast the lane at compile-time index `IDX` to all lanes.
-    fn broadcast_lane<T: Lane, const IDX: usize>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn broadcast_lane<T: Lane, const IDX: usize>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Interleave the lower halves of two vectors.
-    fn interleave_lower<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn interleave_lower<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Interleave the upper halves of two vectors.
-    fn interleave_upper<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn interleave_upper<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Zip lower halves: `[a0, b0, a1, b1, ...]`.
-    fn zip_lower<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn zip_lower<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Zip upper halves.
-    fn zip_upper<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn zip_upper<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Byte-level table lookup. Each byte in `idx` selects a byte from `table`.
     fn table_lookup_bytes<T: Lane>(
@@ -972,31 +1108,58 @@ pub unsafe trait SimdShuffle: Simd {
     fn reverse8<T: Lane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Upper half of `hi`, lower half of `lo`.
-    fn concat_upper_lower<T: Lane>(self, hi: Self::Vec<T>, lo: Self::Vec<T>)
-    -> Self::Vec<T>;
+    fn concat_upper_lower<T: Lane>(
+        self,
+        hi: Self::Vec<T>,
+        lo: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Lower half of `hi`, upper half of `lo`.
-    fn concat_lower_upper<T: Lane>(self, hi: Self::Vec<T>, lo: Self::Vec<T>)
-    -> Self::Vec<T>;
+    fn concat_lower_upper<T: Lane>(
+        self,
+        hi: Self::Vec<T>,
+        lo: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Even-indexed lanes from `a` (lower) and `b` (upper).
-    fn concat_even<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn concat_even<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Odd-indexed lanes from `a` (lower) and `b` (upper).
-    fn concat_odd<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn concat_odd<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Odd lanes from `odd`, even lanes from `even`.
-    fn odd_even<T: Lane>(self, odd: Self::Vec<T>, even: Self::Vec<T>) -> Self::Vec<T>;
+    fn odd_even<T: Lane>(
+        self,
+        odd: Self::Vec<T>,
+        even: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Shift all lanes up (toward higher indices) by `N`, filling low lanes with zero.
-    fn slide_up_lanes<T: Lane>(self, v: Self::Vec<T>, n: usize) -> Self::Vec<T>;
+    fn slide_up_lanes<T: Lane>(self, v: Self::Vec<T>, n: usize)
+    -> Self::Vec<T>;
 
     /// Shift all lanes down (toward lower indices) by `N`, filling high lanes with zero.
-    fn slide_down_lanes<T: Lane>(self, v: Self::Vec<T>, n: usize) -> Self::Vec<T>;
+    fn slide_down_lanes<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        n: usize,
+    ) -> Self::Vec<T>;
 
     /// Compress: pack lanes where mask is true to the low end.
     /// Inactive lane values are implementation-defined.
-    fn compress<T: Lane>(self, v: Self::Vec<T>, mask: Self::Mask<T>) -> Self::Vec<T>;
+    fn compress<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        mask: Self::Mask<T>,
+    ) -> Self::Vec<T>;
 
     /// Compress and store to `ptr`. Returns the number of lanes written.
     unsafe fn compress_store<T: Lane>(
@@ -1036,7 +1199,11 @@ pub unsafe trait SimdShuffle: Simd {
 
     /// Expand (inverse of compress): scatter low lanes to mask-true positions,
     /// zero where mask is false.
-    fn expand<T: Lane>(self, v: Self::Vec<T>, mask: Self::Mask<T>) -> Self::Vec<T>;
+    fn expand<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        mask: Self::Mask<T>,
+    ) -> Self::Vec<T>;
 
     /// Concatenate hi:lo and extract a window of vector-size starting at byte BYTES.
     /// Per-128-bit-block operation (PALIGNR semantics). BYTES must be 1..=15.
@@ -1068,19 +1235,39 @@ pub unsafe trait SimdShuffle: Simd {
     fn reverse_blocks<T: Lane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Compress keeping elements where mask is FALSE.
-    fn compress_not<T: Lane>(self, v: Self::Vec<T>, mask: Self::Mask<T>) -> Self::Vec<T>;
+    fn compress_not<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        mask: Self::Mask<T>,
+    ) -> Self::Vec<T>;
 
     /// Compress 128-bit blocks where mask is FALSE. Operates on u64 only.
-    fn compress_blocks_not(self, v: Self::Vec<u64>, mask: Self::Mask<u64>) -> Self::Vec<u64>;
+    fn compress_blocks_not(
+        self,
+        v: Self::Vec<u64>,
+        mask: Self::Mask<u64>,
+    ) -> Self::Vec<u64>;
 
     /// Duplicate 128-bit block IDX across the entire vector.
-    fn broadcast_block<T: Lane, const IDX: usize>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn broadcast_block<T: Lane, const IDX: usize>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Compress using a raw bit array instead of mask.
-    unsafe fn compress_bits<T: Lane>(self, v: Self::Vec<T>, bits: *const u8) -> Self::Vec<T>;
+    unsafe fn compress_bits<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        bits: *const u8,
+    ) -> Self::Vec<T>;
 
     /// Compress from bit array and store. Returns number of lanes written.
-    unsafe fn compress_bits_store<T: Lane>(self, v: Self::Vec<T>, bits: *const u8, ptr: *mut T) -> usize;
+    unsafe fn compress_bits_store<T: Lane>(
+        self,
+        v: Self::Vec<T>,
+        bits: *const u8,
+        ptr: *mut T,
+    ) -> usize;
 
     /// Extract the lower half of a vector as a half-width vector.
     fn lower_half<T: Lane>(self, v: Self::Vec<T>) -> Self::VecHalf<T>;
@@ -1089,25 +1276,52 @@ pub unsafe trait SimdShuffle: Simd {
     fn upper_half<T: Lane>(self, v: Self::Vec<T>) -> Self::VecHalf<T>;
 
     /// Combine two half-width vectors into a full-width vector.
-    fn combine<T: Lane>(self, lo: Self::VecHalf<T>, hi: Self::VecHalf<T>) -> Self::Vec<T>;
+    fn combine<T: Lane>(
+        self,
+        lo: Self::VecHalf<T>,
+        hi: Self::VecHalf<T>,
+    ) -> Self::Vec<T>;
 
     /// Replace 128-bit block at index IDX.
-    fn insert_block<T: Lane, const IDX: usize>(self, v: Self::Vec<T>, blk: Self::VecHalf<T>) -> Self::Vec<T>;
+    fn insert_block<T: Lane, const IDX: usize>(
+        self,
+        v: Self::Vec<T>,
+        blk: Self::VecHalf<T>,
+    ) -> Self::Vec<T>;
 
     /// Extract 128-bit block at index IDX.
-    fn extract_block<T: Lane, const IDX: usize>(self, v: Self::Vec<T>) -> Self::VecHalf<T>;
+    fn extract_block<T: Lane, const IDX: usize>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::VecHalf<T>;
 
     /// Cross-block interleave of lower halves.
-    fn interleave_whole_lower<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn interleave_whole_lower<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Cross-block interleave of upper halves.
-    fn interleave_whole_upper<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn interleave_whole_upper<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Interleave even-indexed lanes: `[a0, b0, a2, b2, ...]`.
-    fn interleave_even<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn interleave_even<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Interleave odd-indexed lanes: `[a1, b1, a3, b3, ...]`.
-    fn interleave_odd<T: Lane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn interleave_odd<T: Lane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Lane-level lookup across two source vectors.
     /// Index values 0..N-1 select from `a`, N..2N-1 select from `b`.
@@ -1186,7 +1400,10 @@ pub unsafe trait SimdFloat: Simd {
     fn approx_reciprocal<T: FloatLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
 
     /// Approximate reciprocal square root (1/sqrt(x)).
-    fn approx_reciprocal_sqrt<T: FloatLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
+    fn approx_reciprocal_sqrt<T: FloatLane>(
+        self,
+        v: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Round to nearest integer (ties to even).
     fn round<T: FloatLane>(self, v: Self::Vec<T>) -> Self::Vec<T>;
@@ -1233,7 +1450,11 @@ pub unsafe trait SimdFloat: Simd {
     ) -> Self::Vec<T>;
 
     /// Copy the sign of `sign` to the magnitude of `mag`.
-    fn copy_sign<T: FloatLane>(self, mag: Self::Vec<T>, sign: Self::Vec<T>) -> Self::Vec<T>;
+    fn copy_sign<T: FloatLane>(
+        self,
+        mag: Self::Vec<T>,
+        sign: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Per-lane NaN test.
     fn is_nan<T: FloatLane>(self, v: Self::Vec<T>) -> Self::Mask<T>;
@@ -1256,19 +1477,39 @@ pub unsafe trait SimdFloat: Simd {
     ) -> Self::Vec<T>;
 
     /// NaN-propagating minimum: if one operand is NaN, returns the non-NaN operand.
-    fn min_number<T: FloatLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn min_number<T: FloatLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// NaN-propagating maximum: if one operand is NaN, returns the non-NaN operand.
-    fn max_number<T: FloatLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn max_number<T: FloatLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Minimum by absolute value. Break ties via Min.
-    fn min_magnitude<T: FloatLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn min_magnitude<T: FloatLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Maximum by absolute value. Break ties via Max.
-    fn max_magnitude<T: FloatLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Vec<T>;
+    fn max_magnitude<T: FloatLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Vec<T>;
 
     /// Per-lane: true if either operand is NaN.
-    fn is_either_nan<T: FloatLane>(self, a: Self::Vec<T>, b: Self::Vec<T>) -> Self::Mask<T>;
+    fn is_either_nan<T: FloatLane>(
+        self,
+        a: Self::Vec<T>,
+        b: Self::Vec<T>,
+    ) -> Self::Mask<T>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1327,7 +1568,10 @@ pub unsafe trait SimdCrypto: Simd {
     ) -> Self::Vec<u64>;
 
     /// AES key schedule assist per 128-bit block.
-    fn aes_key_gen_assist<const RCON: i32>(self, v: Self::Vec<u8>) -> Self::Vec<u8>;
+    fn aes_key_gen_assist<const RCON: i32>(
+        self,
+        v: Self::Vec<u8>,
+    ) -> Self::Vec<u8>;
 
     /// AES inverse MixColumns for decryption key expansion per 128-bit block.
     fn aes_inv_mix_columns(self, v: Self::Vec<u8>) -> Self::Vec<u8>;
@@ -1419,7 +1663,11 @@ pub unsafe fn store<S: SimdMemory, T: Lane>(s: S, v: S::Vec<T>, ptr: *mut T) {
 /// # Safety
 /// The target's CPU features must be enabled.
 #[inline(always)]
-pub fn add<S: SimdArith, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Vec<T> {
+pub fn add<S: SimdArith, T: Lane>(
+    s: S,
+    a: S::Vec<T>,
+    b: S::Vec<T>,
+) -> S::Vec<T> {
     // SAFETY: Caller guarantees CPU features.
     s.add(a, b)
 }
@@ -1429,7 +1677,11 @@ pub fn add<S: SimdArith, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Vec<T>
 /// # Safety
 /// The target's CPU features must be enabled.
 #[inline(always)]
-pub fn sub<S: SimdArith, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Vec<T> {
+pub fn sub<S: SimdArith, T: Lane>(
+    s: S,
+    a: S::Vec<T>,
+    b: S::Vec<T>,
+) -> S::Vec<T> {
     // SAFETY: Caller guarantees CPU features.
     s.sub(a, b)
 }
@@ -1439,7 +1691,11 @@ pub fn sub<S: SimdArith, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Vec<T>
 /// # Safety
 /// The target's CPU features must be enabled.
 #[inline(always)]
-pub fn mul<S: SimdArith, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Vec<T> {
+pub fn mul<S: SimdArith, T: Lane>(
+    s: S,
+    a: S::Vec<T>,
+    b: S::Vec<T>,
+) -> S::Vec<T> {
     // SAFETY: Caller guarantees CPU features.
     s.mul(a, b)
 }
@@ -1449,7 +1705,11 @@ pub fn mul<S: SimdArith, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Vec<T>
 /// # Safety
 /// The target's CPU features must be enabled.
 #[inline(always)]
-pub fn eq<S: SimdCompare, T: Lane>(s: S, a: S::Vec<T>, b: S::Vec<T>) -> S::Mask<T> {
+pub fn eq<S: SimdCompare, T: Lane>(
+    s: S,
+    a: S::Vec<T>,
+    b: S::Vec<T>,
+) -> S::Mask<T> {
     // SAFETY: Caller guarantees CPU features.
     s.eq(a, b)
 }

@@ -436,7 +436,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_to_scalar() {
-        let result = dispatch_to(ScalarAddKernel { a: 5, b: 7 }, TargetId::Scalar);
+        let result =
+            dispatch_to(ScalarAddKernel { a: 5, b: 7 }, TargetId::Scalar);
         assert_eq!(result, 12);
     }
 
