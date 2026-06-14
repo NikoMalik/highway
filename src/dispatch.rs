@@ -83,31 +83,45 @@ pub fn reset_detection() {
 // ---------------------------------------------------------------------------
 
 #[cfg(target_arch = "x86_64")]
-fn detect_impl() -> TargetId {
-    if is_x86_feature_detected!("avx512f")
+#[inline]
+fn has_avx512() -> bool {
+    is_x86_feature_detected!("avx512f")
         && is_x86_feature_detected!("avx512bw")
         && is_x86_feature_detected!("avx512cd")
         && is_x86_feature_detected!("avx512dq")
         && is_x86_feature_detected!("avx512vl")
-    {
+}
+
+#[cfg(target_arch = "x86_64")]
+#[inline]
+fn has_avx2() -> bool {
+    is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma")
+}
+
+#[cfg(target_arch = "x86_64")]
+#[inline]
+fn has_sse2() -> bool {
+    is_x86_feature_detected!("sse2")
+}
+
+#[cfg(target_arch = "x86_64")]
+fn detect_impl() -> TargetId {
+    if has_avx512() {
         return TargetId::Avx512;
     }
-
-    if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
+    if has_avx2() {
         return TargetId::Avx2;
     }
-
-    if is_x86_feature_detected!("sse2") {
+    if has_sse2() {
         return TargetId::Sse2;
     }
-
     TargetId::Scalar
 }
 
 #[cfg(target_arch = "aarch64")]
 fn detect_impl() -> TargetId {
     // NEON is mandatory on aarch64, but we don't have a backend yet.
-    // When the neon backend is added, this will return TargetId::Neon.
+    // When the neon backend is added, this will return TargetId::Neon
     TargetId::Scalar
 }
 
@@ -175,26 +189,34 @@ pub fn dispatch<K: WithSimd>(kernel: K) -> K::Output {
 
 /// Dispatch a kernel to a specific target (useful for testing or forced selection).
 ///
-/// If the specified target is not available on this platform, falls back to scalar.
+/// The requested target's CPU features are verified at runtime before use. If
+/// the running CPU does not support the requested target (or the target is not
+/// compiled for this platform), the kernel falls back to the scalar backend.
+/// This makes the function sound to call with any [`TargetId`] on any CPU.
 pub fn dispatch_to<K: WithSimd>(kernel: K, target: TargetId) -> K::Output {
-    match target {
-        #[cfg(target_arch = "x86_64")]
-        TargetId::Avx512 => {
-            // SAFETY: We verified AVX-512 features are available via detect_best_target.
-            unsafe { dispatch_avx512(kernel) }
+    #[cfg(target_arch = "x86_64")]
+    {
+        match target {
+            // Each arm re-checks the required features at runtime. The guard is
+            // the safety precondition for calling the `#[target_feature]` trampoline
+            TargetId::Avx512 if has_avx512() => {
+                // SAFETY: has_avx512() confirmed the required AVX-512 features at runtime
+                return unsafe { dispatch_avx512(kernel) };
+            }
+            TargetId::Avx2 if has_avx2() => {
+                // SAFETY: has_avx2() confirmed AVX2+FMA at runtime
+                return unsafe { dispatch_avx2(kernel) };
+            }
+            TargetId::Sse2 if has_sse2() => {
+                // SAFETY: has_sse2() confirmed SSE2 at runtime
+                return unsafe { dispatch_sse2(kernel) };
+            }
+            // Requested target unsupported on this CPU -> fall through to scalar
+            _ => {}
         }
-        #[cfg(target_arch = "x86_64")]
-        TargetId::Avx2 => {
-            // SAFETY: We verified AVX2+FMA features are available via detect_best_target.
-            unsafe { dispatch_avx2(kernel) }
-        }
-        #[cfg(target_arch = "x86_64")]
-        TargetId::Sse2 => {
-            // SAFETY: We verified SSE2 feature is available via detect_best_target.
-            unsafe { dispatch_sse2(kernel) }
-        }
-        _ => kernel.with_simd(Scalar),
     }
+    let _ = target;
+    kernel.with_simd(Scalar)
 }
 
 // ---------------------------------------------------------------------------
@@ -444,5 +466,33 @@ mod tests {
         assert_eq!(dispatch_to(MulKernel(6, 7), TargetId::Scalar), expected);
         // Whatever the best target is
         assert_eq!(dispatch(MulKernel(6, 7)), expected);
+    }
+
+    /// Soundness: `dispatch_to` must be safe to call with *any* `TargetId`,
+    /// even one the running CPU does not support. Forcing an unsupported target
+    /// must fall back to scalar (returning the correct result) rather than
+    /// executing unsupported instructions (UB / SIGILL).
+    #[test]
+    fn test_dispatch_to_unsupported_target_falls_back() {
+        struct MulKernel(i32, i32);
+        impl WithSimd for MulKernel {
+            type Output = i32;
+            fn with_simd<S: SimdOps>(self, _s: S) -> i32 {
+                self.0 * self.1
+            }
+        }
+
+        // Every variant, regardless of CPU support, yields the correct result.
+        // On a CPU lacking a given target this exercises the runtime-feature
+        // fallback path; on a capable CPU it runs natively. Either way: no UB.
+        for target in [
+            TargetId::Scalar,
+            TargetId::Sse2,
+            TargetId::Avx2,
+            TargetId::Avx512,
+            TargetId::Neon,
+        ] {
+            assert_eq!(dispatch_to(MulKernel(6, 7), target), 42);
+        }
     }
 }
