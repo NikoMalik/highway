@@ -23,8 +23,30 @@ use crate::{A16, A32, Aligned};
 // ---------------------------------------------------------------------------
 
 /// The AVX2 SIMD target (256-bit vectors).
+///
+/// This token is a *proof* that AVX2+FMA are available on the running CPU: it
+/// cannot be constructed from safe code (the inner field is private). It is
+/// handed to kernels only by the dispatch machinery after a runtime feature
+/// check, which is why all AVX2 vector operations can have safe signatures.
 #[derive(Clone, Copy, Debug)]
-pub struct Avx2;
+pub struct Avx2(());
+
+impl Avx2 {
+    /// Construct an AVX2 token without checking CPU support.
+    ///
+    /// # Safety
+    /// The caller must ensure AVX2+FMA are available on the running CPU. Prefer
+    /// obtaining a token through `dispatch`/`dispatch_to`, which checks at runtime.
+    #[inline(always)]
+    pub unsafe fn new_unchecked() -> Self {
+        Avx2(())
+    }
+
+    #[inline(always)]
+    pub(crate) fn new() -> Self {
+        Avx2(())
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Vector and Mask types
@@ -202,12 +224,12 @@ fn write_lane<T: Lane>(arr: &mut [u8; 32], offset: usize, val: T) {
 // SAFETY: All intrinsics require AVX2, guaranteed by dispatch trampoline.
 unsafe impl SimdCore for Avx2 {
     #[inline(always)]
-    unsafe fn zero<T: Lane>(self) -> V256<T> {
+    fn zero<T: Lane>(self) -> V256<T> {
         V256::from_raw(unsafe { _mm256_setzero_si256() })
     }
 
     #[inline(always)]
-    unsafe fn splat<T: Lane>(self, value: T) -> V256<T> {
+    fn splat<T: Lane>(self, value: T) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -233,12 +255,12 @@ unsafe impl SimdCore for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn undefined<T: Lane>(self) -> V256<T> {
+    fn undefined<T: Lane>(self) -> V256<T> {
         V256::from_raw(unsafe { _mm256_setzero_si256() })
     }
 
     #[inline(always)]
-    unsafe fn bitcast<T: Lane, U: Lane>(self, v: V256<T>) -> V256<U> {
+    fn bitcast<T: Lane, U: Lane>(self, v: V256<T>) -> V256<U> {
         V256::from_raw(v.raw)
     }
 
@@ -262,7 +284,7 @@ unsafe impl SimdCore for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn iota<T: Lane>(self, base: T) -> V256<T> {
+    fn iota<T: Lane>(self, base: T) -> V256<T> {
         unsafe {
             let indices = match T::BYTES {
                 1 => _mm256_setr_epi8(
@@ -742,7 +764,7 @@ unsafe impl SimdMemory for Avx2 {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdArith for Avx2 {
     #[inline(always)]
-    unsafe fn add<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn add<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm256_add_epi8(a.raw, b.raw),
@@ -774,7 +796,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn sub<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn sub<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm256_sub_epi8(a.raw, b.raw),
@@ -806,7 +828,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn mul<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn mul<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -855,7 +877,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn div<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn div<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_div_ps(
@@ -873,7 +895,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn saturated_add<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn saturated_add<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -969,7 +991,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn saturated_sub<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn saturated_sub<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -1051,7 +1073,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn abs<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn abs<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if is_type::<T, f32>() {
                 let mask = _mm256_set1_epi32(0x7FFF_FFFFu32 as i32);
@@ -1079,7 +1101,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn neg<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn neg<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if is_type::<T, f32>() {
                 let sign = _mm256_set1_epi32(0x8000_0000u32 as i32);
@@ -1102,7 +1124,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn min<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn min<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm256_castps_si256(_mm256_min_ps(
@@ -1150,7 +1172,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn max<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn max<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm256_castps_si256(_mm256_max_ps(
@@ -1197,7 +1219,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_high<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn mul_high<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -1260,7 +1282,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn average_round<T: UnsignedLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn average_round<T: UnsignedLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm256_avg_epu8(a.raw, b.raw),
@@ -1288,17 +1310,17 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn abs_diff<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.sub(self.max(a, b), self.min(a, b)) }
+    fn abs_diff<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.sub(self.max(a, b), self.min(a, b))
     }
 
     #[inline(always)]
-    unsafe fn clamp<T: Lane>(self, v: V256<T>, lo: V256<T>, hi: V256<T>) -> V256<T> {
-        unsafe { self.min(self.max(v, lo), hi) }
+    fn clamp<T: Lane>(self, v: V256<T>, lo: V256<T>, hi: V256<T>) -> V256<T> {
+        self.min(self.max(v, lo), hi)
     }
 
     #[inline(always)]
-    unsafe fn mul_even<T: NarrowLane>(self, a: V256<T>, b: V256<T>) -> V256<T::Wide>
+    fn mul_even<T: NarrowLane>(self, a: V256<T>, b: V256<T>) -> V256<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -1351,7 +1373,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_odd<T: NarrowLane>(self, a: V256<T>, b: V256<T>) -> V256<T::Wide>
+    fn mul_odd<T: NarrowLane>(self, a: V256<T>, b: V256<T>) -> V256<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -1407,7 +1429,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn widen_mul_pairwise_add_i16(
+    fn widen_mul_pairwise_add_i16(
         self,
         a: V256<i16>,
         b: V256<i16>,
@@ -1416,7 +1438,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn sat_widen_mul_pairwise_add(
+    fn sat_widen_mul_pairwise_add(
         self,
         a: V256<u8>,
         b: V256<i8>,
@@ -1425,7 +1447,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_fixed_point_15(
+    fn mul_fixed_point_15(
         self,
         a: V256<i16>,
         b: V256<i16>,
@@ -1434,7 +1456,7 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reorder_widen_mul_accumulate(
+    fn reorder_widen_mul_accumulate(
         self,
         a: V256<i16>,
         b: V256<i16>,
@@ -1444,38 +1466,38 @@ unsafe impl SimdArith for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn saturated_neg<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
-        unsafe { self.saturated_sub(self.zero::<T>(), v) }
+    fn saturated_neg<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+        self.saturated_sub(self.zero::<T>(), v)
     }
 
     #[inline(always)]
-    unsafe fn saturated_abs<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
-        unsafe { self.max(v, self.saturated_neg(v)) }
+    fn saturated_abs<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+        self.max(v, self.saturated_neg(v))
     }
 
     #[inline(always)]
-    unsafe fn masked_min_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.if_then_else(mask, self.min(a, b), no) }
+    fn masked_min_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.if_then_else(mask, self.min(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_max_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.if_then_else(mask, self.max(a, b), no) }
+    fn masked_max_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.if_then_else(mask, self.max(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_add_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.if_then_else(mask, self.add(a, b), no) }
+    fn masked_add_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.if_then_else(mask, self.add(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_sub_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.if_then_else(mask, self.sub(a, b), no) }
+    fn masked_sub_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.if_then_else(mask, self.sub(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_mul_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.if_then_else(mask, self.mul(a, b), no) }
+    fn masked_mul_or<T: Lane>(self, no: V256<T>, mask: M256<T>, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.if_then_else(mask, self.mul(a, b), no)
     }
 }
 
@@ -1486,33 +1508,33 @@ unsafe impl SimdArith for Avx2 {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdBitwise for Avx2 {
     #[inline(always)]
-    unsafe fn and<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn and<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_and_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn or<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn or<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_or_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn xor<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn xor<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_xor_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn not<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn not<T: Lane>(self, v: V256<T>) -> V256<T> {
         let all_ones = unsafe { _mm256_set1_epi8(!0) };
         V256::from_raw(unsafe { _mm256_xor_si256(v.raw, all_ones) })
     }
 
     #[inline(always)]
-    unsafe fn and_not<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn and_not<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_andnot_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1531,7 +1553,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1592,7 +1614,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let type_bits = (T::BYTES * 8) as u32;
             let right = BITS % type_bits;
@@ -1638,7 +1660,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_left_same<T: IntegerLane>(self, v: V256<T>, bits: u32) -> V256<T> {
+    fn shift_left_same<T: IntegerLane>(self, v: V256<T>, bits: u32) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1657,7 +1679,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_right_same<T: IntegerLane>(self, v: V256<T>, bits: u32) -> V256<T> {
+    fn shift_right_same<T: IntegerLane>(self, v: V256<T>, bits: u32) -> V256<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1714,7 +1736,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V256<T>) -> V256<T> {
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = match BYTES {
                 0 => v.raw,
@@ -1740,7 +1762,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V256<T>) -> V256<T> {
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = match BYTES {
                 0 => v.raw,
@@ -1766,7 +1788,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn population_count<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+    fn population_count<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             // Nibble-lookup popcount: count set bits per byte, then accumulate
             let nibble_lut = _mm256_setr_epi8(
@@ -1808,7 +1830,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn leading_zero_count<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+    fn leading_zero_count<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -1980,7 +2002,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn trailing_zero_count<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+    fn trailing_zero_count<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             // tzc(x) = popcount((x - 1) & ~x)
             // For x == 0: x-1 wraps to all-ones, ~x = all-ones, so result = type_bits. Correct.
@@ -2006,7 +2028,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse_lane_bytes<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn reverse_lane_bytes<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => v.raw, // single byte, nothing to reverse
@@ -2041,7 +2063,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse_bits<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+    fn reverse_bits<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             // Nibble-lookup to reverse bits within each nibble
             let nibble_rev = _mm256_setr_epi8(
@@ -2072,7 +2094,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shl<T: IntegerLane>(
+    fn shl<T: IntegerLane>(
         self,
         v: V256<T>,
         bits: V256<T>,
@@ -2113,7 +2135,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn shr<T: IntegerLane>(
+    fn shr<T: IntegerLane>(
         self,
         v: V256<T>,
         bits: V256<T>,
@@ -2191,7 +2213,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn ror<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn ror<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let _bits_per_lane = (T::BYTES * 8) as u32;
@@ -2235,7 +2257,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn rol<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn rol<T: IntegerLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut result = [0u8; 32];
@@ -2276,7 +2298,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
+    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut result = [0u8; 32];
@@ -2308,7 +2330,7 @@ unsafe impl SimdBitwise for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn broadcast_sign_bit<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
+    fn broadcast_sign_bit<T: IntegerLane>(self, v: V256<T>) -> V256<T> {
         // All-ones if the MSB (sign bit) is set, else all-zeros. Matches C++ Highway.
         unsafe {
             let raw = match T::BYTES {
@@ -2334,7 +2356,7 @@ unsafe impl SimdBitwise for Avx2 {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdCompare for Avx2 {
     #[inline(always)]
-    unsafe fn eq<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+    fn eq<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm256_castps_si256(_mm256_cmp_ps(
@@ -2362,7 +2384,7 @@ unsafe impl SimdCompare for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn ne<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+    fn ne<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
         unsafe {
             // For floats, use _CMP_NEQ_OQ directly (ordered, quiet) to match
             // C++ Highway semantics: NaN != x returns false.
@@ -2388,7 +2410,7 @@ unsafe impl SimdCompare for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn lt<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+    fn lt<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm256_castps_si256(_mm256_cmp_ps(
@@ -2435,7 +2457,7 @@ unsafe impl SimdCompare for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn le<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+    fn le<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
         unsafe {
             if is_type::<T, f32>() {
                 M256::from_raw(_mm256_castps_si256(_mm256_cmp_ps(
@@ -2458,17 +2480,17 @@ unsafe impl SimdCompare for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn gt<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
-        unsafe { self.lt(b, a) }
+    fn gt<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+        self.lt(b, a)
     }
 
     #[inline(always)]
-    unsafe fn ge<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
-        unsafe { self.le(b, a) }
+    fn ge<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+        self.le(b, a)
     }
 
     #[inline(always)]
-    unsafe fn test_bit<T: IntegerLane>(self, v: V256<T>, bit: V256<T>) -> M256<T> {
+    fn test_bit<T: IntegerLane>(self, v: V256<T>, bit: V256<T>) -> M256<T> {
         unsafe {
             let anded = _mm256_and_si256(v.raw, bit.raw);
             let zero = _mm256_setzero_si256();
@@ -2491,7 +2513,7 @@ unsafe impl SimdCompare for Avx2 {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdMask for Avx2 {
     #[inline(always)]
-    unsafe fn mask_from_vec<T: Lane>(self, v: V256<T>) -> M256<T> {
+    fn mask_from_vec<T: Lane>(self, v: V256<T>) -> M256<T> {
         unsafe {
             let zero = _mm256_setzero_si256();
             let is_zero = match T::BYTES {
@@ -2506,12 +2528,12 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn vec_from_mask<T: Lane>(self, m: M256<T>) -> V256<T> {
+    fn vec_from_mask<T: Lane>(self, m: M256<T>) -> V256<T> {
         V256::from_raw(m.raw)
     }
 
     #[inline(always)]
-    unsafe fn first_n<T: Lane>(self, n: usize) -> M256<T> {
+    fn first_n<T: Lane>(self, n: usize) -> M256<T> {
         // Signed comparisons are cheaper (same as C++ Highway).
         // iota < threshold <-> cmpgt(threshold, iota)
         unsafe {
@@ -2546,7 +2568,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn count_true<T: Lane>(self, m: M256<T>) -> usize {
+    fn count_true<T: Lane>(self, m: M256<T>) -> usize {
         unsafe {
             match T::BYTES {
                 1 => _mm256_movemask_epi8(m.raw).count_ones() as usize,
@@ -2559,17 +2581,17 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn all_true<T: Lane>(self, m: M256<T>) -> bool {
+    fn all_true<T: Lane>(self, m: M256<T>) -> bool {
         unsafe { _mm256_movemask_epi8(m.raw) == -1i32 }
     }
 
     #[inline(always)]
-    unsafe fn all_false<T: Lane>(self, m: M256<T>) -> bool {
+    fn all_false<T: Lane>(self, m: M256<T>) -> bool {
         unsafe { _mm256_movemask_epi8(m.raw) == 0 }
     }
 
     #[inline(always)]
-    unsafe fn find_first_true<T: Lane>(self, m: M256<T>) -> Option<usize> {
+    fn find_first_true<T: Lane>(self, m: M256<T>) -> Option<usize> {
         unsafe {
             let bits = _mm256_movemask_epi8(m.raw) as u32;
             if bits == 0 {
@@ -2581,7 +2603,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn if_then_else<T: Lane>(self, mask: M256<T>, yes: V256<T>, no: V256<T>) -> V256<T> {
+    fn if_then_else<T: Lane>(self, mask: M256<T>, yes: V256<T>, no: V256<T>) -> V256<T> {
         unsafe {
             V256::from_raw(_mm256_or_si256(
                 _mm256_and_si256(mask.raw, yes.raw),
@@ -2591,37 +2613,37 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn if_then_else_zero<T: Lane>(self, mask: M256<T>, yes: V256<T>) -> V256<T> {
+    fn if_then_else_zero<T: Lane>(self, mask: M256<T>, yes: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_and_si256(mask.raw, yes.raw) })
     }
 
     #[inline(always)]
-    unsafe fn if_then_zero_else<T: Lane>(self, mask: M256<T>, no: V256<T>) -> V256<T> {
+    fn if_then_zero_else<T: Lane>(self, mask: M256<T>, no: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_andnot_si256(mask.raw, no.raw) })
     }
 
     #[inline(always)]
-    unsafe fn and_mask<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
+    fn and_mask<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
         M256::from_raw(unsafe { _mm256_and_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn or_mask<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
+    fn or_mask<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
         M256::from_raw(unsafe { _mm256_or_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn not_mask<T: Lane>(self, m: M256<T>) -> M256<T> {
+    fn not_mask<T: Lane>(self, m: M256<T>) -> M256<T> {
         M256::from_raw(unsafe { _mm256_xor_si256(m.raw, _mm256_set1_epi8(!0)) })
     }
 
     #[inline(always)]
-    unsafe fn xor_mask<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
+    fn xor_mask<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
         M256::from_raw(unsafe { _mm256_xor_si256(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn find_last_true<T: Lane>(self, m: M256<T>) -> Option<usize> {
+    fn find_last_true<T: Lane>(self, m: M256<T>) -> Option<usize> {
         unsafe {
             let bits = _mm256_movemask_epi8(m.raw) as u32;
             if bits == 0 {
@@ -2636,7 +2658,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn bits_from_mask<T: Lane>(self, m: M256<T>) -> u64 {
+    fn bits_from_mask<T: Lane>(self, m: M256<T>) -> u64 {
         unsafe {
             match T::BYTES {
                 1 => _mm256_movemask_epi8(m.raw) as u32 as u64,
@@ -2657,7 +2679,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn exclusive_neither<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
+    fn exclusive_neither<T: Lane>(self, a: M256<T>, b: M256<T>) -> M256<T> {
         // NOR: true only where neither a nor b is set (C++ ExclusiveNeither).
         unsafe {
             let ones = _mm256_cmpeq_epi8(_mm256_setzero_si256(), _mm256_setzero_si256());
@@ -2667,8 +2689,8 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_mask_1_up<T: Lane>(self, mask: M256<T>) -> M256<T> {
-        unsafe {
+    fn slide_mask_1_up<T: Lane>(self, mask: M256<T>) -> M256<T> {
+        {
             let v = self.vec_from_mask::<T>(mask);
             let slid = self.slide_1_up(v);
             self.mask_from_vec(slid)
@@ -2676,8 +2698,8 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_mask_1_down<T: Lane>(self, mask: M256<T>) -> M256<T> {
-        unsafe {
+    fn slide_mask_1_down<T: Lane>(self, mask: M256<T>) -> M256<T> {
+        {
             let v = self.vec_from_mask::<T>(mask);
             let slid = self.slide_1_down(v);
             self.mask_from_vec(slid)
@@ -2685,7 +2707,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_else<T: Lane>(self, v: V256<T>, yes: V256<T>, no: V256<T>) -> V256<T> {
+    fn if_negative_then_else<T: Lane>(self, v: V256<T>, yes: V256<T>, no: V256<T>) -> V256<T> {
         unsafe {
             let sign = avx2_sign_mask::<T>(v.raw);
             let r = _mm256_or_si256(_mm256_and_si256(sign, yes.raw), _mm256_andnot_si256(sign, no.raw));
@@ -2694,7 +2716,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_else_zero<T: Lane>(self, v: V256<T>, yes: V256<T>) -> V256<T> {
+    fn if_negative_then_else_zero<T: Lane>(self, v: V256<T>, yes: V256<T>) -> V256<T> {
         unsafe {
             let sign = avx2_sign_mask::<T>(v.raw);
             V256::from_raw(_mm256_and_si256(sign, yes.raw))
@@ -2702,7 +2724,7 @@ unsafe impl SimdMask for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_zero_else<T: Lane>(self, v: V256<T>, no: V256<T>) -> V256<T> {
+    fn if_negative_then_zero_else<T: Lane>(self, v: V256<T>, no: V256<T>) -> V256<T> {
         unsafe {
             let sign = avx2_sign_mask::<T>(v.raw);
             V256::from_raw(_mm256_andnot_si256(sign, no.raw))
@@ -2734,7 +2756,7 @@ unsafe fn avx2_sign_mask<T: Lane>(raw: __m256i) -> __m256i {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdConvert for Avx2 {
     #[inline(always)]
-    unsafe fn promote_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
+    fn promote_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
     where
         N::Wide: Lane,
     {
@@ -2771,7 +2793,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn demote_to<W: WideLane>(self, v: V256<W>) -> V256<W::Narrow>
+    fn demote_to<W: WideLane>(self, v: V256<W>) -> V256<W::Narrow>
     where
         W::Narrow: Lane,
     {
@@ -2842,7 +2864,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn convert_to_int<F: FloatLane>(self, v: V256<F>) -> V256<F::Int> {
+    fn convert_to_int<F: FloatLane>(self, v: V256<F>) -> V256<F::Int> {
         unsafe {
             let raw = if F::BYTES == 4 {
                 _mm256_cvttps_epi32(_mm256_castsi256_ps(v.raw))
@@ -2877,7 +2899,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn convert_to_float<F: FloatLane>(self, v: V256<F::Int>) -> V256<F> {
+    fn convert_to_float<F: FloatLane>(self, v: V256<F::Int>) -> V256<F> {
         unsafe {
             let raw = if F::BYTES == 4 {
                 _mm256_castps_si256(_mm256_cvtepi32_ps(v.raw))
@@ -2903,7 +2925,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn truncate_to<W: WideLane>(self, v: V256<W>) -> V256<W::Narrow>
+    fn truncate_to<W: WideLane>(self, v: V256<W>) -> V256<W::Narrow>
     where
         W::Narrow: Lane,
     {
@@ -2948,7 +2970,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn ordered_demote_2_to<W: WideLane>(
+    fn ordered_demote_2_to<W: WideLane>(
         self,
         lo: V256<W>,
         hi: V256<W>,
@@ -3036,7 +3058,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn nearest_int<F: FloatLane>(self, v: V256<F>) -> V256<F::Int> {
+    fn nearest_int<F: FloatLane>(self, v: V256<F>) -> V256<F::Int> {
         unsafe {
             let raw = if F::BYTES == 4 {
                 // _mm256_cvtps_epi32: round-to-nearest using current mode (nearest-even).
@@ -3084,7 +3106,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reorder_demote_2_to<W: WideLane>(
+    fn reorder_demote_2_to<W: WideLane>(
         self,
         a: V256<W>,
         b: V256<W>,
@@ -3168,20 +3190,20 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn demote_in_range_to<W: WideLane>(self, v: V256<W>) -> V256<W::Narrow>
+    fn demote_in_range_to<W: WideLane>(self, v: V256<W>) -> V256<W::Narrow>
     where
         W::Narrow: Lane,
     {
-        unsafe { self.demote_to(v) }
+        self.demote_to(v)
     }
 
     #[inline(always)]
-    unsafe fn convert_in_range_to_int<F: FloatLane>(self, v: V256<F>) -> V256<F::Int> {
-        unsafe { self.convert_to_int(v) }
+    fn convert_in_range_to_int<F: FloatLane>(self, v: V256<F>) -> V256<F::Int> {
+        self.convert_to_int(v)
     }
 
     #[inline(always)]
-    unsafe fn promote_lower_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
+    fn promote_lower_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
     where
         N::Wide: Lane,
     {
@@ -3222,7 +3244,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn promote_upper_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
+    fn promote_upper_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
     where
         N::Wide: Lane,
     {
@@ -3262,7 +3284,7 @@ unsafe impl SimdConvert for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn ordered_truncate_2_to<W: WideLane>(
+    fn ordered_truncate_2_to<W: WideLane>(
         self,
         lo: V256<W>,
         hi: V256<W>,
@@ -3271,7 +3293,7 @@ unsafe impl SimdConvert for Avx2 {
         W::Narrow: Lane,
     {
         // OrderedTruncate2To = ConcatEven of the narrow-reinterpreted vectors.
-        unsafe {
+        {
             let lo_n = self.bitcast::<W, W::Narrow>(lo);
             let hi_n = self.bitcast::<W, W::Narrow>(hi);
             self.concat_even(lo_n, hi_n)
@@ -3286,7 +3308,7 @@ unsafe impl SimdConvert for Avx2 {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdShuffle for Avx2 {
     #[inline(always)]
-    unsafe fn reverse<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn reverse<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             // First swap 128-bit halves, then reverse within each half
             let swapped = _mm256_permute2x128_si256(v.raw, v.raw, 0x01);
@@ -3314,7 +3336,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn broadcast_lane<T: Lane, const IDX: usize>(self, v: V256<T>) -> V256<T> {
+    fn broadcast_lane<T: Lane, const IDX: usize>(self, v: V256<T>) -> V256<T> {
         unsafe {
             match T::BYTES {
                 4 => {
@@ -3352,7 +3374,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm256_unpacklo_epi8(a.raw, b.raw),
@@ -3366,7 +3388,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm256_unpackhi_epi8(a.raw, b.raw),
@@ -3380,23 +3402,23 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn zip_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.interleave_lower(a, b) }
+    fn zip_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.interleave_lower(a, b)
     }
 
     #[inline(always)]
-    unsafe fn zip_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe { self.interleave_upper(a, b) }
+    fn zip_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        self.interleave_upper(a, b)
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_bytes<T: Lane>(self, table: V256<T>, idx: V256<T>) -> V256<T> {
+    fn table_lookup_bytes<T: Lane>(self, table: V256<T>, idx: V256<T>) -> V256<T> {
         // AVX2 pshufb operates within 128-bit lanes
         V256::from_raw(unsafe { _mm256_shuffle_epi8(table.raw, idx.raw) })
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_lanes<T: Lane, I: IntegerLane>(
+    fn table_lookup_lanes<T: Lane, I: IntegerLane>(
         self,
         v: V256<T>,
         idx: V256<I>,
@@ -3432,7 +3454,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse2<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn reverse2<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3466,7 +3488,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse4<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn reverse4<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3500,7 +3522,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse8<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn reverse8<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3549,19 +3571,19 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_upper_lower<T: Lane>(self, hi: V256<T>, lo: V256<T>) -> V256<T> {
+    fn concat_upper_lower<T: Lane>(self, hi: V256<T>, lo: V256<T>) -> V256<T> {
         // Upper 128 bits from hi, lower 128 bits from lo
         V256::from_raw(unsafe { _mm256_blend_epi32(lo.raw, hi.raw, 0xF0) })
     }
 
     #[inline(always)]
-    unsafe fn concat_lower_upper<T: Lane>(self, hi: V256<T>, lo: V256<T>) -> V256<T> {
+    fn concat_lower_upper<T: Lane>(self, hi: V256<T>, lo: V256<T>) -> V256<T> {
         // Lower 128 bits from hi, upper 128 bits from lo
         V256::from_raw(unsafe { _mm256_blend_epi32(lo.raw, hi.raw, 0x0F) })
     }
 
     #[inline(always)]
-    unsafe fn concat_even<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn concat_even<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             match T::BYTES {
                 4 => {
@@ -3639,7 +3661,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_odd<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn concat_odd<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             match T::BYTES {
                 4 => {
@@ -3696,7 +3718,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn odd_even<T: Lane>(self, odd: V256<T>, even: V256<T>) -> V256<T> {
+    fn odd_even<T: Lane>(self, odd: V256<T>, even: V256<T>) -> V256<T> {
         unsafe {
             // Blend: take even-indexed lanes from `even`, odd-indexed lanes from `odd`
             match T::BYTES {
@@ -3735,7 +3757,7 @@ unsafe impl SimdShuffle for Avx2 {
 
     #[inline(always)]
     #[allow(clippy::needless_range_loop)]
-    unsafe fn slide_up_lanes<T: Lane>(self, v: V256<T>, n: usize) -> V256<T> {
+    fn slide_up_lanes<T: Lane>(self, v: V256<T>, n: usize) -> V256<T> {
         unsafe {
             if T::BYTES >= 4 {
                 // SIMD approach Iota + And + cmpeq + permutevar.
@@ -3764,7 +3786,7 @@ unsafe impl SimdShuffle for Avx2 {
 
     #[inline(always)]
     #[allow(clippy::needless_range_loop)]
-    unsafe fn slide_down_lanes<T: Lane>(self, v: V256<T>, n: usize) -> V256<T> {
+    fn slide_down_lanes<T: Lane>(self, v: V256<T>, n: usize) -> V256<T> {
         unsafe {
             if T::BYTES >= 4 {
                 // SIMD approach Iota + And + cmpeq + permutevar.
@@ -3790,7 +3812,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn compress<T: Lane>(self, v: V256<T>, mask: M256<T>) -> V256<T> {
+    fn compress<T: Lane>(self, v: V256<T>, mask: M256<T>) -> V256<T> {
         unsafe {
             if T::BYTES == 4 {
                 // LUT-based compress for 8 * u32/i32/f32 lanes.
@@ -3841,7 +3863,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn dup_even<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn dup_even<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm256_castps_si256(_mm256_moveldup_ps(_mm256_castsi256_ps(v.raw)))
@@ -3867,7 +3889,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn dup_odd<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn dup_odd<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm256_castps_si256(_mm256_movehdup_ps(_mm256_castsi256_ps(v.raw)))
@@ -3893,7 +3915,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_lower_lower<T: Lane>(
+    fn concat_lower_lower<T: Lane>(
         self,
         hi: V256<T>,
         lo: V256<T>,
@@ -3903,7 +3925,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_upper_upper<T: Lane>(
+    fn concat_upper_upper<T: Lane>(
         self,
         hi: V256<T>,
         lo: V256<T>,
@@ -3913,7 +3935,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_1_up<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn slide_1_up<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             // Shift within each 128-bit lane
             let shifted = match T::BYTES {
@@ -3938,7 +3960,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_1_down<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn slide_1_down<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let shifted = match T::BYTES {
                 1 => _mm256_bsrli_epi128(v.raw, 1),
@@ -3962,7 +3984,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn expand<T: Lane>(self, v: V256<T>, mask: M256<T>) -> V256<T> {
+    fn expand<T: Lane>(self, v: V256<T>, mask: M256<T>) -> V256<T> {
         unsafe {
             // No native AVX2 expand; scalar fallback
             let lanes = simd::lanes::<T, Avx2>();
@@ -3987,7 +4009,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn combine_shift_right_bytes<T: Lane, const BYTES: usize>(
+    fn combine_shift_right_bytes<T: Lane, const BYTES: usize>(
         self,
         hi: V256<T>,
         lo: V256<T>,
@@ -4034,7 +4056,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn odd_even_blocks<T: Lane>(
+    fn odd_even_blocks<T: Lane>(
         self,
         odd: V256<T>,
         even: V256<T>,
@@ -4047,7 +4069,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse_blocks<T: Lane>(self, v: V256<T>) -> V256<T> {
+    fn reverse_blocks<T: Lane>(self, v: V256<T>) -> V256<T> {
         // Swap the two 128-bit halves. _mm256_permute4x64_epi64(v, 0x4E) swaps
         // the two 128-bit lanes (01|23 -> 23|01).
         unsafe {
@@ -4056,18 +4078,18 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn compress_not<T: Lane>(self, v: V256<T>, mask: M256<T>) -> V256<T> {
-        unsafe { self.compress(v, self.not_mask(mask)) }
+    fn compress_not<T: Lane>(self, v: V256<T>, mask: M256<T>) -> V256<T> {
+        self.compress(v, self.not_mask(mask))
     }
 
     #[inline(always)]
-    unsafe fn compress_blocks_not(self, v: V256<u64>, mask: M256<u64>) -> V256<u64> {
+    fn compress_blocks_not(self, v: V256<u64>, mask: M256<u64>) -> V256<u64> {
         // 2 blocks: invert mask and compress
-        unsafe { self.compress(v, self.not_mask(mask)) }
+        self.compress(v, self.not_mask(mask))
     }
 
     #[inline(always)]
-    unsafe fn broadcast_block<T: Lane, const IDX: usize>(self, v: V256<T>) -> V256<T> {
+    fn broadcast_block<T: Lane, const IDX: usize>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if IDX == 0 {
                 // Broadcast lower 128-bit block to both halves
@@ -4122,21 +4144,21 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn lower_half<T: Lane>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
+    fn lower_half<T: Lane>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
         unsafe {
             crate::backend::sse2::V128::from_raw(_mm256_castsi256_si128(v.raw))
         }
     }
 
     #[inline(always)]
-    unsafe fn upper_half<T: Lane>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
+    fn upper_half<T: Lane>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
         unsafe {
             crate::backend::sse2::V128::from_raw(_mm256_extracti128_si256(v.raw, 1))
         }
     }
 
     #[inline(always)]
-    unsafe fn combine<T: Lane>(self, lo: crate::backend::sse2::V128<T>, hi: crate::backend::sse2::V128<T>) -> V256<T> {
+    fn combine<T: Lane>(self, lo: crate::backend::sse2::V128<T>, hi: crate::backend::sse2::V128<T>) -> V256<T> {
         unsafe {
             let lo256 = _mm256_castsi128_si256(lo.raw());
             V256::from_raw(_mm256_inserti128_si256(lo256, hi.raw(), 1))
@@ -4144,7 +4166,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn insert_block<T: Lane, const IDX: usize>(self, v: V256<T>, blk: crate::backend::sse2::V128<T>) -> V256<T> {
+    fn insert_block<T: Lane, const IDX: usize>(self, v: V256<T>, blk: crate::backend::sse2::V128<T>) -> V256<T> {
         unsafe {
             if IDX == 0 {
                 V256::from_raw(_mm256_inserti128_si256(v.raw, blk.raw(), 0))
@@ -4155,7 +4177,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn extract_block<T: Lane, const IDX: usize>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
+    fn extract_block<T: Lane, const IDX: usize>(self, v: V256<T>) -> crate::backend::sse2::V128<T> {
         unsafe {
             if IDX == 0 {
                 crate::backend::sse2::V128::from_raw(_mm256_castsi256_si128(v.raw))
@@ -4166,10 +4188,10 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_whole_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_whole_lower<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         // Cross-block interleave of lower halves
         // Result: interleave lanes from lower half of a and lower half of b
-        unsafe {
+        {
             let il = self.interleave_lower(a, b);
             let iu = self.interleave_upper(a, b);
             self.concat_lower_lower(iu, il)
@@ -4177,9 +4199,9 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_whole_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_whole_upper<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         // Cross-block interleave of upper halves
-        unsafe {
+        {
             let il = self.interleave_lower(a, b);
             let iu = self.interleave_upper(a, b);
             self.concat_upper_upper(iu, il)
@@ -4187,7 +4209,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_even<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_even<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut arr_a = [0u8; 32];
@@ -4212,7 +4234,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_odd<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+    fn interleave_odd<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
             let lanes = 32 / T::BYTES;
             let mut arr_a = [0u8; 32];
@@ -4237,7 +4259,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn two_tables_lookup_lanes<T: Lane, I: IntegerLane>(
+    fn two_tables_lookup_lanes<T: Lane, I: IntegerLane>(
         self,
         a: V256<T>,
         b: V256<T>,
@@ -4274,7 +4296,7 @@ unsafe impl SimdShuffle for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_lanes_or0<T: Lane, I: IntegerLane>(
+    fn table_lookup_lanes_or0<T: Lane, I: IntegerLane>(
         self,
         v: V256<T>,
         idx: V256<I>,
@@ -4316,7 +4338,7 @@ unsafe impl SimdShuffle for Avx2 {
 // SAFETY: All intrinsics require AVX2.
 unsafe impl SimdReduce for Avx2 {
     #[inline(always)]
-    unsafe fn sum_of_lanes<T: Lane>(self, v: V256<T>) -> T {
+    fn sum_of_lanes<T: Lane>(self, v: V256<T>) -> T {
         unsafe {
             // Step 1: reduce 256-bit -> 128-bit by adding upper and lower halves.
             let lo = _mm256_castsi256_si128(v.raw);
@@ -4370,7 +4392,7 @@ unsafe impl SimdReduce for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn min_of_lanes<T: Lane>(self, v: V256<T>) -> T {
+    fn min_of_lanes<T: Lane>(self, v: V256<T>) -> T {
         unsafe {
             // Tree reduction: swap 128-bit halves, min, then shift-and-min within lower half.
             // _mm256_permute2x128_si256(v, v, 0x01) swaps the two 128-bit halves.
@@ -4422,7 +4444,7 @@ unsafe impl SimdReduce for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn max_of_lanes<T: Lane>(self, v: V256<T>) -> T {
+    fn max_of_lanes<T: Lane>(self, v: V256<T>) -> T {
         unsafe {
             let swapped = V256::<T>::from_raw(_mm256_permute2x128_si256(v.raw, v.raw, 0x01));
             let mut r = self.max(v, swapped);
@@ -4462,7 +4484,7 @@ unsafe impl SimdReduce for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_8_abs_diff(
+    fn sums_of_8_abs_diff(
         self,
         a: V256<u8>,
         b: V256<u8>,
@@ -4471,7 +4493,7 @@ unsafe impl SimdReduce for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_2<T: NarrowLane>(self, v: V256<T>) -> V256<T::Wide>
+    fn sums_of_2<T: NarrowLane>(self, v: V256<T>) -> V256<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -4530,7 +4552,7 @@ unsafe impl SimdReduce for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_4<T: NarrowLane>(
+    fn sums_of_4<T: NarrowLane>(
         self,
         v: V256<T>,
     ) -> V256<<T::Wide as NarrowLane>::Wide>
@@ -4538,7 +4560,7 @@ unsafe impl SimdReduce for Avx2 {
         T::Wide: NarrowLane + Lane,
         <T::Wide as NarrowLane>::Wide: Lane,
     {
-        unsafe {
+        {
             let mid = self.sums_of_2(v);
             self.sums_of_2(mid)
         }
@@ -4552,7 +4574,7 @@ unsafe impl SimdReduce for Avx2 {
 // SAFETY: All intrinsics require AVX2+FMA.
 unsafe impl SimdFloat for Avx2 {
     #[inline(always)]
-    unsafe fn sqrt<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn sqrt<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_sqrt_ps(_mm256_castsi256_ps(v.raw)))
@@ -4564,7 +4586,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn approx_reciprocal<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn approx_reciprocal<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if T::BYTES == 4 {
                 V256::from_raw(_mm256_castps_si256(_mm256_rcp_ps(_mm256_castsi256_ps(
@@ -4581,7 +4603,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             if T::BYTES == 4 {
                 V256::from_raw(_mm256_castps_si256(_mm256_rsqrt_ps(_mm256_castsi256_ps(
@@ -4596,7 +4618,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn round<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn round<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_round_ps(
@@ -4614,7 +4636,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn trunc<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn trunc<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_round_ps(
@@ -4632,7 +4654,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn ceil<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn ceil<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_ceil_ps(_mm256_castsi256_ps(v.raw)))
@@ -4644,7 +4666,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn floor<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn floor<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_floor_ps(_mm256_castsi256_ps(v.raw)))
@@ -4656,7 +4678,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_add<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn mul_add<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fmadd_ps(
@@ -4676,7 +4698,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn neg_mul_add<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn neg_mul_add<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fnmadd_ps(
@@ -4696,7 +4718,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn mul_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fmsub_ps(
@@ -4716,7 +4738,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn neg_mul_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
+    fn neg_mul_sub<T: FloatLane>(self, a: V256<T>, b: V256<T>, c: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm256_castps_si256(_mm256_fnmsub_ps(
@@ -4736,7 +4758,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn copy_sign<T: FloatLane>(self, mag: V256<T>, sign: V256<T>) -> V256<T> {
+    fn copy_sign<T: FloatLane>(self, mag: V256<T>, sign: V256<T>) -> V256<T> {
         unsafe {
             if T::BYTES == 4 {
                 let sign_mask = _mm256_set1_epi32(0x8000_0000u32 as i32);
@@ -4753,7 +4775,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn is_nan<T: FloatLane>(self, v: V256<T>) -> M256<T> {
+    fn is_nan<T: FloatLane>(self, v: V256<T>) -> M256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 let ps = _mm256_castsi256_ps(v.raw);
@@ -4767,7 +4789,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn is_inf<T: FloatLane>(self, v: V256<T>) -> M256<T> {
+    fn is_inf<T: FloatLane>(self, v: V256<T>) -> M256<T> {
         unsafe {
             if T::BYTES == 4 {
                 let abs_mask = _mm256_set1_epi32(0x7FFF_FFFFu32 as i32);
@@ -4784,7 +4806,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn zero_if_negative<T: FloatLane>(self, v: V256<T>) -> V256<T> {
+    fn zero_if_negative<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 let sign = _mm256_srai_epi32(v.raw, 31);
@@ -4800,7 +4822,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn is_finite<T: FloatLane>(self, v: V256<T>) -> M256<T> {
+    fn is_finite<T: FloatLane>(self, v: V256<T>) -> M256<T> {
         unsafe {
             if T::BYTES == 4 {
                 let shifted = _mm256_srli_epi32(_mm256_slli_epi32(v.raw, 1), 24);
@@ -4822,7 +4844,7 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn add_sub<T: FloatLane>(
+    fn add_sub<T: FloatLane>(
         self,
         a: V256<T>,
         b: V256<T>,
@@ -4846,8 +4868,8 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn min_number<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe {
+    fn min_number<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        {
             let nan_a = self.is_nan(a);
             let min_ab = self.min(a, b);
             self.if_then_else(nan_a, b, min_ab)
@@ -4855,8 +4877,8 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn max_number<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe {
+    fn max_number<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        {
             let nan_a = self.is_nan(a);
             let max_ab = self.max(a, b);
             self.if_then_else(nan_a, b, max_ab)
@@ -4864,8 +4886,8 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn min_magnitude<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe {
+    fn min_magnitude<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        {
             let abs_a = self.abs(a);
             let abs_b = self.abs(b);
             let abs_eq = self.eq(abs_a, abs_b);
@@ -4877,8 +4899,8 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn max_magnitude<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
-        unsafe {
+    fn max_magnitude<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
+        {
             let abs_a = self.abs(a);
             let abs_b = self.abs(b);
             let abs_eq = self.eq(abs_a, abs_b);
@@ -4890,8 +4912,8 @@ unsafe impl SimdFloat for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn is_either_nan<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
-        unsafe { self.or_mask(self.is_nan(a), self.is_nan(b)) }
+    fn is_either_nan<T: FloatLane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
+        self.or_mask(self.is_nan(a), self.is_nan(b))
     }
 }
 
@@ -4903,7 +4925,7 @@ unsafe impl SimdFloat for Avx2 {
 // Uses VAES/VPCLMULQDQ when available, otherwise splits to 2*128-bit operations.
 unsafe impl crate::ops::SimdCrypto for Avx2 {
     #[inline(always)]
-    unsafe fn aes_round(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
+    fn aes_round(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
         unsafe {
             // Split into two 128-bit halves, apply AES-NI, recombine
             let lo_s = _mm256_castsi256_si128(state.raw);
@@ -4941,7 +4963,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_last_round(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
+    fn aes_last_round(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
         unsafe {
             let lo_s = _mm256_castsi256_si128(state.raw);
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
@@ -4978,7 +5000,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_round_inv(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
+    fn aes_round_inv(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
         unsafe {
             let lo_s = _mm256_castsi256_si128(state.raw);
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
@@ -5015,7 +5037,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_last_round_inv(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
+    fn aes_last_round_inv(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
         unsafe {
             let lo_s = _mm256_castsi256_si128(state.raw);
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
@@ -5052,7 +5074,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn cl_mul_lower(self, a: V256<u64>, b: V256<u64>) -> V256<u64> {
+    fn cl_mul_lower(self, a: V256<u64>, b: V256<u64>) -> V256<u64> {
         unsafe {
             let lo_a = _mm256_castsi256_si128(a.raw);
             let hi_a = _mm256_extracti128_si256(a.raw, 1);
@@ -5082,7 +5104,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn cl_mul_upper(self, a: V256<u64>, b: V256<u64>) -> V256<u64> {
+    fn cl_mul_upper(self, a: V256<u64>, b: V256<u64>) -> V256<u64> {
         unsafe {
             let lo_a = _mm256_castsi256_si128(a.raw);
             let hi_a = _mm256_extracti128_si256(a.raw, 1);
@@ -5112,7 +5134,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_key_gen_assist<const RCON: i32>(self, v: V256<u8>) -> V256<u8> {
+    fn aes_key_gen_assist<const RCON: i32>(self, v: V256<u8>) -> V256<u8> {
         unsafe {
             let lo = _mm256_castsi256_si128(v.raw);
             let hi = _mm256_extracti128_si256(v.raw, 1);
@@ -5135,7 +5157,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_inv_mix_columns(self, v: V256<u8>) -> V256<u8> {
+    fn aes_inv_mix_columns(self, v: V256<u8>) -> V256<u8> {
         unsafe {
             let lo = _mm256_castsi256_si128(v.raw);
             let hi = _mm256_extracti128_si256(v.raw, 1);
@@ -5165,6 +5187,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
 #[cfg(test)]
 #[cfg(target_arch = "x86_64")]
 mod tests {
+    #![allow(unused_unsafe)]
     use super::*;
 
     fn has_avx2() -> bool {
@@ -5176,7 +5199,7 @@ mod tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2;
+        let s = Avx2::new();
         unsafe {
             let a = s.splat::<i32>(10);
             let b = s.splat::<i32>(32);
@@ -5192,7 +5215,7 @@ mod tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2;
+        let s = Avx2::new();
         unsafe {
             let data: [i32; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
             let v: V256<i32> = s.load_u(data.as_ptr());
@@ -5207,7 +5230,7 @@ mod tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2;
+        let s = Avx2::new();
         unsafe {
             let a = s.splat::<f32>(1.5);
             let b = s.splat::<f32>(2.5);
@@ -5222,7 +5245,7 @@ mod tests {
         if !has_avx2() || !is_x86_feature_detected!("fma") {
             return;
         }
-        let s = Avx2;
+        let s = Avx2::new();
         unsafe {
             let a = s.splat::<f32>(2.0);
             let b = s.splat::<f32>(3.0);

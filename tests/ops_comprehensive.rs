@@ -1,4 +1,4 @@
-#![allow(clippy::undocumented_unsafe_blocks, clippy::needless_range_loop, clippy::manual_div_ceil, clippy::too_many_lines)]
+#![allow(unused_unsafe, clippy::undocumented_unsafe_blocks, clippy::needless_range_loop, clippy::manual_div_ceil, clippy::too_many_lines)]
 //! Comprehensive tests for ALL SimdOps operations across all available targets.
 //!
 //! Each test exercises a specific SIMD operation, computes expected results
@@ -11887,9 +11887,9 @@ fn test_aes_key_gen_assist() {
     unsafe {
         for target in simd_targets() {
             let ok = match target {
-                TargetId::Sse2 => test_aes_key_gen_assist_on(highway::backend::sse2::Sse2),
-                TargetId::Avx2 => test_aes_key_gen_assist_on(highway::backend::avx2::Avx2),
-                TargetId::Avx512 => test_aes_key_gen_assist_on(highway::backend::avx512::Avx512),
+                TargetId::Sse2 => test_aes_key_gen_assist_on(unsafe { highway::backend::sse2::Sse2::new_unchecked() }),
+                TargetId::Avx2 => test_aes_key_gen_assist_on(unsafe { highway::backend::avx2::Avx2::new_unchecked() }),
+                TargetId::Avx512 => test_aes_key_gen_assist_on(unsafe { highway::backend::avx512::Avx512::new_unchecked() }),
                 _ => true,
             };
             assert!(ok, "aes_key_gen_assist failed on {:?}", target);
@@ -11902,9 +11902,9 @@ fn test_aes_inv_mix_columns() {
     unsafe {
         for target in simd_targets() {
             let ok = match target {
-                TargetId::Sse2 => test_aes_inv_mix_columns_on(highway::backend::sse2::Sse2),
-                TargetId::Avx2 => test_aes_inv_mix_columns_on(highway::backend::avx2::Avx2),
-                TargetId::Avx512 => test_aes_inv_mix_columns_on(highway::backend::avx512::Avx512),
+                TargetId::Sse2 => test_aes_inv_mix_columns_on(unsafe { highway::backend::sse2::Sse2::new_unchecked() }),
+                TargetId::Avx2 => test_aes_inv_mix_columns_on(unsafe { highway::backend::avx2::Avx2::new_unchecked() }),
+                TargetId::Avx512 => test_aes_inv_mix_columns_on(unsafe { highway::backend::avx512::Avx512::new_unchecked() }),
                 _ => true,
             };
             assert!(ok, "aes_inv_mix_columns failed on {:?}", target);
@@ -12749,5 +12749,68 @@ impl WithSimd for TableLookupBytesOr0Kernel {
 fn test_table_lookup_bytes_or0() {
     for t in available_targets() {
         assert!(dispatch_to(TableLookupBytesOr0Kernel, t), "table_lookup_bytes non-identity on {:?}", t);
+    }
+}
+
+// =========================================================================
+// Safe slice-based load/store wrappers (no `unsafe` in user code)
+// =========================================================================
+
+struct SliceLoadStoreKernel<'a> {
+    input: &'a [f32],
+    out: &'a mut [f32],
+}
+impl WithSimd for SliceLoadStoreKernel<'_> {
+    type Output = ();
+    fn with_simd<S: SimdOps>(self, s: S) {
+        // Entirely safe: no `unsafe` block anywhere in this kernel.
+        let lanes = s.lanes::<f32>();
+        let v = s.load_slice(&self.input[..lanes]);
+        let doubled = s.add(v, v);
+        s.store_slice(doubled, &mut self.out[..lanes]);
+    }
+}
+
+#[test]
+fn test_load_store_slice_safe() {
+    for target in available_targets() {
+        let lanes = lanes_for::<f32>(target);
+        let input: Vec<f32> = (0..lanes).map(|i| i as f32 + 1.0).collect();
+        let mut out = vec![0.0f32; lanes];
+        dispatch_to(SliceLoadStoreKernel { input: &input, out: &mut out }, target);
+        for i in 0..lanes {
+            assert_eq!(out[i], (i as f32 + 1.0) * 2.0, "load/store_slice on {target:?}");
+        }
+    }
+}
+
+struct AlignedSliceKernel<'a> {
+    input: &'a [f32],
+    out: &'a mut [f32],
+}
+impl WithSimd for AlignedSliceKernel<'_> {
+    type Output = ();
+    fn with_simd<S: SimdOps>(self, s: S) {
+        let lanes = s.lanes::<f32>();
+        // Safe aligned load/store (bounds + alignment checked internally).
+        let v = s.load_aligned_slice(&self.input[..lanes]);
+        let tripled = s.add(s.add(v, v), v);
+        s.store_aligned_slice(tripled, &mut self.out[..lanes]);
+    }
+}
+
+#[test]
+fn test_load_store_aligned_slice_safe() {
+    use highway::{aligned_vec_from_slice, aligned_vec_with_capacity};
+    for target in available_targets() {
+        let lanes = lanes_for::<f32>(target);
+        let src: Vec<f32> = (0..lanes).map(|i| i as f32 + 1.0).collect();
+        let input = aligned_vec_from_slice(&src);
+        let mut out = aligned_vec_with_capacity::<f32>(lanes);
+        out.resize(lanes, 0.0);
+        dispatch_to(AlignedSliceKernel { input: &input, out: &mut out }, target);
+        for i in 0..lanes {
+            assert_eq!(out[i], (i as f32 + 1.0) * 3.0, "aligned load/store_slice on {target:?}");
+        }
     }
 }

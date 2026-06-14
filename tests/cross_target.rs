@@ -1,4 +1,4 @@
-#![allow(clippy::undocumented_unsafe_blocks, clippy::type_complexity)]
+#![allow(unused_unsafe, clippy::undocumented_unsafe_blocks, clippy::type_complexity)]
 //! Cross-target consistency tests.
 //!
 //! Verifies that all available SIMD targets produce identical results

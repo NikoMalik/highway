@@ -1,4 +1,4 @@
-#![allow(clippy::undocumented_unsafe_blocks, clippy::needless_range_loop)]
+#![allow(unused_unsafe, clippy::undocumented_unsafe_blocks, clippy::needless_range_loop)]
 //! Tests for SimdCrypto operations (AES round, carry-less multiply).
 //!
 //! Since SimdCrypto is not part of SimdOps (scalar can't implement it),
@@ -56,7 +56,7 @@ mod x86_tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = unsafe { Sse2::new_unchecked() };
         unsafe {
             let state = s.splat::<u8>(0x42);
             let key = s.splat::<u8>(0x00);
@@ -80,7 +80,7 @@ mod x86_tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2;
+        let s = unsafe { Avx2::new_unchecked() };
         unsafe {
             let state = s.splat::<u8>(0x42);
             let key = s.splat::<u8>(0x00);
@@ -96,7 +96,7 @@ mod x86_tests {
         if !has_avx512() {
             return;
         }
-        let s = Avx512;
+        let s = unsafe { Avx512::new_unchecked() };
         unsafe {
             let state = s.splat::<u8>(0x42);
             let key = s.splat::<u8>(0x00);
@@ -128,7 +128,7 @@ mod x86_tests {
 
         // SSE2 reference
         let sse2_result = unsafe {
-            let s = Sse2;
+            let s = unsafe { Sse2::new_unchecked() };
             let state = s.load_u::<u8>(input.as_ptr());
             let rk = s.load_u::<u8>(key.as_ptr());
             extract_bytes(s, s.aes_round(state, rk))
@@ -137,7 +137,7 @@ mod x86_tests {
         // AVX2: first 128-bit block should match SSE2
         if has_avx2() {
             let avx2_result = unsafe {
-                let s = Avx2;
+                let s = unsafe { Avx2::new_unchecked() };
                 let mut buf = [0u8; 32];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -156,7 +156,7 @@ mod x86_tests {
         // AVX-512: first 128-bit block should match SSE2
         if has_avx512() {
             let avx512_result = unsafe {
-                let s = Avx512;
+                let s = unsafe { Avx512::new_unchecked() };
                 let mut buf = [0u8; 64];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -189,7 +189,7 @@ mod x86_tests {
         ];
 
         let sse2_result = unsafe {
-            let s = Sse2;
+            let s = unsafe { Sse2::new_unchecked() };
             let state = s.load_u::<u8>(input.as_ptr());
             let rk = s.load_u::<u8>(key.as_ptr());
             extract_bytes(s, s.aes_last_round(state, rk))
@@ -197,7 +197,7 @@ mod x86_tests {
 
         if has_avx2() {
             let avx2_result = unsafe {
-                let s = Avx2;
+                let s = unsafe { Avx2::new_unchecked() };
                 let mut buf = [0u8; 32];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -211,7 +211,7 @@ mod x86_tests {
 
         if has_avx512() {
             let avx512_result = unsafe {
-                let s = Avx512;
+                let s = unsafe { Avx512::new_unchecked() };
                 let mut buf = [0u8; 64];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -237,7 +237,7 @@ mod x86_tests {
         let key: [u8; 16] = [0x13; 16];
 
         let sse2_result = unsafe {
-            let s = Sse2;
+            let s = unsafe { Sse2::new_unchecked() };
             let state = s.load_u::<u8>(input.as_ptr());
             let rk = s.load_u::<u8>(key.as_ptr());
             extract_bytes(s, s.aes_round_inv(state, rk))
@@ -245,7 +245,7 @@ mod x86_tests {
 
         if has_avx2() {
             let avx2_result = unsafe {
-                let s = Avx2;
+                let s = unsafe { Avx2::new_unchecked() };
                 let mut buf = [0u8; 32];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -259,7 +259,7 @@ mod x86_tests {
 
         if has_avx512() {
             let avx512_result = unsafe {
-                let s = Avx512;
+                let s = unsafe { Avx512::new_unchecked() };
                 let mut buf = [0u8; 64];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -285,7 +285,7 @@ mod x86_tests {
         let key: [u8; 16] = [0xab; 16];
 
         let sse2_result = unsafe {
-            let s = Sse2;
+            let s = unsafe { Sse2::new_unchecked() };
             let state = s.load_u::<u8>(input.as_ptr());
             let rk = s.load_u::<u8>(key.as_ptr());
             extract_bytes(s, s.aes_last_round_inv(state, rk))
@@ -293,7 +293,7 @@ mod x86_tests {
 
         if has_avx2() {
             let avx2_result = unsafe {
-                let s = Avx2;
+                let s = unsafe { Avx2::new_unchecked() };
                 let mut buf = [0u8; 32];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -307,7 +307,7 @@ mod x86_tests {
 
         if has_avx512() {
             let avx512_result = unsafe {
-                let s = Avx512;
+                let s = unsafe { Avx512::new_unchecked() };
                 let mut buf = [0u8; 64];
                 buf[..16].copy_from_slice(&input);
                 let state = s.load_u::<u8>(buf.as_ptr());
@@ -345,7 +345,7 @@ mod x86_tests {
 
         unsafe {
             // SSE2: process each block separately
-            let s1 = Sse2;
+            let s1 = unsafe { Sse2::new_unchecked() };
             let r0 = extract_bytes(
                 s1,
                 s1.aes_round(
@@ -362,7 +362,7 @@ mod x86_tests {
             );
 
             // AVX2: process both blocks at once
-            let s2 = Avx2;
+            let s2 = unsafe { Avx2::new_unchecked() };
             let mut combined_state = [0u8; 32];
             combined_state[..16].copy_from_slice(&block0);
             combined_state[16..].copy_from_slice(&block1);
@@ -402,7 +402,7 @@ mod x86_tests {
 
         unsafe {
             // SSE2: process each block separately
-            let s1 = Sse2;
+            let s1 = unsafe { Sse2::new_unchecked() };
             let rk = s1.load_u::<u8>(key.as_ptr());
             let mut sse2_results = Vec::new();
             for block in &blocks {
@@ -411,7 +411,7 @@ mod x86_tests {
             }
 
             // AVX-512: process all 4 blocks at once
-            let s5 = Avx512;
+            let s5 = unsafe { Avx512::new_unchecked() };
             let mut combined_state = [0u8; 64];
             for (i, block) in blocks.iter().enumerate() {
                 combined_state[i * 16..(i + 1) * 16].copy_from_slice(block);
@@ -449,7 +449,7 @@ mod x86_tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = unsafe { Sse2::new_unchecked() };
         unsafe {
             // clmul(1, x) = x
             let a = s.load_u::<u64>([1u64, 0xdead].as_ptr());
@@ -472,7 +472,7 @@ mod x86_tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = unsafe { Sse2::new_unchecked() };
         unsafe {
             // clmul_upper uses the upper u64 of each 128-bit block
             let a = s.load_u::<u64>([0u64, 1].as_ptr()); // upper = 1
@@ -488,7 +488,7 @@ mod x86_tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = unsafe { Sse2::new_unchecked() };
         unsafe {
             // clmul(0x8000000000000000, 2) should overflow into hi
             let a = s.load_u::<u64>([0x8000000000000000u64, 0].as_ptr());
@@ -512,7 +512,7 @@ mod x86_tests {
 
         // SSE2 reference
         let (sse2_lower, sse2_upper) = unsafe {
-            let s = Sse2;
+            let s = unsafe { Sse2::new_unchecked() };
             let a = s.load_u::<u64>([a_lo, a_hi].as_ptr());
             let b = s.load_u::<u64>([b_lo, b_hi].as_ptr());
             (
@@ -523,7 +523,7 @@ mod x86_tests {
 
         // AVX2: each 128-bit block should independently match SSE2
         if has_avx2() {
-            let s2 = Avx2;
+            let s2 = unsafe { Avx2::new_unchecked() };
             let (avx2_lower, avx2_upper) = unsafe {
                 let a = s2.load_u::<u64>([a_lo, a_hi, a_lo, a_hi].as_ptr());
                 let b = s2.load_u::<u64>([b_lo, b_hi, b_lo, b_hi].as_ptr());
@@ -544,7 +544,7 @@ mod x86_tests {
 
         // AVX-512
         if has_avx512() {
-            let s5 = Avx512;
+            let s5 = unsafe { Avx512::new_unchecked() };
             let (avx512_lower, avx512_upper) = unsafe {
                 let a = s5.load_u::<u64>(
                     [a_lo, a_hi, a_lo, a_hi, a_lo, a_hi, a_lo, a_hi].as_ptr(),

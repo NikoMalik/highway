@@ -93,22 +93,22 @@ use crate::lane::is_type;
 // SAFETY: All operations are plain Rust scalar ops. No CPU feature requirements.
 unsafe impl SimdCore for Scalar {
     #[inline(always)]
-    unsafe fn zero<T: Lane>(self) -> Vec1<T> {
+    fn zero<T: Lane>(self) -> Vec1<T> {
         Vec1(T::default())
     }
 
     #[inline(always)]
-    unsafe fn splat<T: Lane>(self, value: T) -> Vec1<T> {
+    fn splat<T: Lane>(self, value: T) -> Vec1<T> {
         Vec1(value)
     }
 
     #[inline(always)]
-    unsafe fn undefined<T: Lane>(self) -> Vec1<T> {
+    fn undefined<T: Lane>(self) -> Vec1<T> {
         Vec1(T::default())
     }
 
     #[inline(always)]
-    unsafe fn bitcast<T: Lane, U: Lane>(self, v: Vec1<T>) -> Vec1<U> {
+    fn bitcast<T: Lane, U: Lane>(self, v: Vec1<T>) -> Vec1<U> {
         debug_assert!(
             core::mem::size_of::<T>() == core::mem::size_of::<U>(),
             "bitcast: source and destination must have the same size"
@@ -148,7 +148,7 @@ unsafe impl SimdCore for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn iota<T: Lane>(self, base: T) -> Vec1<T> {
+    fn iota<T: Lane>(self, base: T) -> Vec1<T> {
         // For scalar, there's only lane 0, which is base + 0 = base.
         Vec1(base)
     }
@@ -329,7 +329,7 @@ unsafe impl SimdMemory for Scalar {
 // SAFETY: All operations are plain Rust scalar arithmetic.
 unsafe impl SimdArith for Scalar {
     #[inline(always)]
-    unsafe fn add<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn add<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -396,7 +396,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn sub<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn sub<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -460,7 +460,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn mul<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn mul<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -524,7 +524,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn div<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn div<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -542,7 +542,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn saturated_add<T: IntegerLane>(
+    fn saturated_add<T: IntegerLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -600,7 +600,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn saturated_sub<T: IntegerLane>(
+    fn saturated_sub<T: IntegerLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -658,7 +658,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn abs<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn abs<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -704,7 +704,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn neg<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn neg<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -758,7 +758,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn min<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn min<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -822,7 +822,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn max<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn max<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -886,7 +886,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn mul_high<T: IntegerLane>(
+    fn mul_high<T: IntegerLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -952,7 +952,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn average_round<T: UnsignedLane>(
+    fn average_round<T: UnsignedLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -984,7 +984,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn abs_diff<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn abs_diff<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 if is_type::<T, u8>() {
@@ -1047,17 +1047,17 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn clamp<T: Lane>(
+    fn clamp<T: Lane>(
         self,
         v: Vec1<T>,
         lo: Vec1<T>,
         hi: Vec1<T>,
     ) -> Vec1<T> {
-        unsafe { self.min(self.max(v, lo), hi) }
+        self.min(self.max(v, lo), hi)
     }
 
     #[inline(always)]
-    unsafe fn mul_even<T: NarrowLane>(
+    fn mul_even<T: NarrowLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -1107,7 +1107,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn mul_odd<T: NarrowLane>(
+    fn mul_odd<T: NarrowLane>(
         self,
         _a: Vec1<T>,
         _b: Vec1<T>,
@@ -1120,7 +1120,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn widen_mul_pairwise_add_i16(
+    fn widen_mul_pairwise_add_i16(
         self,
         a: Vec1<i16>,
         b: Vec1<i16>,
@@ -1130,7 +1130,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn sat_widen_mul_pairwise_add(
+    fn sat_widen_mul_pairwise_add(
         self,
         a: Vec1<u8>,
         b: Vec1<i8>,
@@ -1140,7 +1140,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn mul_fixed_point_15(
+    fn mul_fixed_point_15(
         self,
         a: Vec1<i16>,
         b: Vec1<i16>,
@@ -1150,7 +1150,7 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn reorder_widen_mul_accumulate(
+    fn reorder_widen_mul_accumulate(
         self,
         a: Vec1<i16>,
         b: Vec1<i16>,
@@ -1160,68 +1160,68 @@ unsafe impl SimdArith for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn saturated_neg<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
-        unsafe { self.saturated_sub(self.zero::<T>(), v) }
+    fn saturated_neg<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+        self.saturated_sub(self.zero::<T>(), v)
     }
 
     #[inline(always)]
-    unsafe fn saturated_abs<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
-        unsafe { self.max(v, self.saturated_neg(v)) }
+    fn saturated_abs<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+        self.max(v, self.saturated_neg(v))
     }
 
     #[inline(always)]
-    unsafe fn masked_min_or<T: Lane>(
+    fn masked_min_or<T: Lane>(
         self,
         no: Vec1<T>,
         mask: Mask1<T>,
         a: Vec1<T>,
         b: Vec1<T>,
     ) -> Vec1<T> {
-        unsafe { self.if_then_else(mask, self.min(a, b), no) }
+        self.if_then_else(mask, self.min(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_max_or<T: Lane>(
+    fn masked_max_or<T: Lane>(
         self,
         no: Vec1<T>,
         mask: Mask1<T>,
         a: Vec1<T>,
         b: Vec1<T>,
     ) -> Vec1<T> {
-        unsafe { self.if_then_else(mask, self.max(a, b), no) }
+        self.if_then_else(mask, self.max(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_add_or<T: Lane>(
+    fn masked_add_or<T: Lane>(
         self,
         no: Vec1<T>,
         mask: Mask1<T>,
         a: Vec1<T>,
         b: Vec1<T>,
     ) -> Vec1<T> {
-        unsafe { self.if_then_else(mask, self.add(a, b), no) }
+        self.if_then_else(mask, self.add(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_sub_or<T: Lane>(
+    fn masked_sub_or<T: Lane>(
         self,
         no: Vec1<T>,
         mask: Mask1<T>,
         a: Vec1<T>,
         b: Vec1<T>,
     ) -> Vec1<T> {
-        unsafe { self.if_then_else(mask, self.sub(a, b), no) }
+        self.if_then_else(mask, self.sub(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_mul_or<T: Lane>(
+    fn masked_mul_or<T: Lane>(
         self,
         no: Vec1<T>,
         mask: Mask1<T>,
         a: Vec1<T>,
         b: Vec1<T>,
     ) -> Vec1<T> {
-        unsafe { self.if_then_else(mask, self.mul(a, b), no) }
+        self.if_then_else(mask, self.mul(a, b), no)
     }
 }
 
@@ -1291,32 +1291,32 @@ unsafe fn bitwise_not<T: Lane>(a: T) -> T {
 // SAFETY: All operations are plain Rust scalar bitwise ops.
 unsafe impl SimdBitwise for Scalar {
     #[inline(always)]
-    unsafe fn and<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn and<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         Vec1(unsafe { bitwise_and(a.0, b.0) })
     }
 
     #[inline(always)]
-    unsafe fn or<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn or<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         Vec1(unsafe { bitwise_or(a.0, b.0) })
     }
 
     #[inline(always)]
-    unsafe fn xor<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn xor<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         Vec1(unsafe { bitwise_xor(a.0, b.0) })
     }
 
     #[inline(always)]
-    unsafe fn not<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn not<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         Vec1(unsafe { bitwise_not(v.0) })
     }
 
     #[inline(always)]
-    unsafe fn and_not<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn and_not<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         Vec1(unsafe { bitwise_and(bitwise_not(a.0), b.0) })
     }
 
     #[inline(always)]
-    unsafe fn shift_left<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
+    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -1362,7 +1362,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shift_right<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
+    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -1408,7 +1408,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
+    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -1459,7 +1459,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shift_left_same<T: IntegerLane>(self, v: Vec1<T>, bits: u32) -> Vec1<T> {
+    fn shift_left_same<T: IntegerLane>(self, v: Vec1<T>, bits: u32) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -1505,7 +1505,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shift_right_same<T: IntegerLane>(self, v: Vec1<T>, bits: u32) -> Vec1<T> {
+    fn shift_right_same<T: IntegerLane>(self, v: Vec1<T>, bits: u32) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if T::BYTES == 1 {
@@ -1551,7 +1551,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: Vec1<T>) -> Vec1<T> {
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: Vec1<T>) -> Vec1<T> {
         // Scalar: shifting bytes within a 1-lane vector.
         // If BYTES >= size_of::<T>(), result is zero.
         if BYTES >= core::mem::size_of::<T>() {
@@ -1577,7 +1577,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: Vec1<T>) -> Vec1<T> {
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: Vec1<T>) -> Vec1<T> {
         if BYTES >= core::mem::size_of::<T>() {
             return Vec1(T::default());
         }
@@ -1600,7 +1600,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn population_count<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn population_count<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 if is_type::<T, u8>() {
@@ -1645,7 +1645,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn leading_zero_count<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn leading_zero_count<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 if is_type::<T, u8>() {
@@ -1690,7 +1690,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn trailing_zero_count<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn trailing_zero_count<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 if is_type::<T, u8>() {
@@ -1735,7 +1735,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn reverse_lane_bytes<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse_lane_bytes<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         let size = core::mem::size_of::<T>();
         if size <= 1 {
             return v;
@@ -1761,7 +1761,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn reverse_bits<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse_bits<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 if is_type::<T, u8>() {
@@ -1806,7 +1806,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shl<T: IntegerLane>(
+    fn shl<T: IntegerLane>(
         self,
         v: Vec1<T>,
         bits: Vec1<T>,
@@ -1863,7 +1863,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn shr<T: IntegerLane>(
+    fn shr<T: IntegerLane>(
         self,
         v: Vec1<T>,
         bits: Vec1<T>,
@@ -1920,7 +1920,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn ror<T: IntegerLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn ror<T: IntegerLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 if crate::lane::is_type::<T, u8>() {
@@ -1955,7 +1955,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn rol<T: IntegerLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn rol<T: IntegerLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 let va: u8 = core::mem::transmute_copy(&a.0);
@@ -1982,7 +1982,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
+    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: Vec1<T>) -> Vec1<T> {
         unsafe {
             if T::BYTES == 1 {
                 let val: u8 = core::mem::transmute_copy(&v.0);
@@ -2005,7 +2005,7 @@ unsafe impl SimdBitwise for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn broadcast_sign_bit<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn broadcast_sign_bit<T: IntegerLane>(self, v: Vec1<T>) -> Vec1<T> {
         // Arithmetic shift right by (bits - 1): all-ones if MSB set, else all-zeros.
         unsafe {
             if T::BYTES == 1 {
@@ -2036,38 +2036,38 @@ unsafe impl SimdBitwise for Scalar {
 // SAFETY: All operations are plain Rust scalar comparisons.
 unsafe impl SimdCompare for Scalar {
     #[inline(always)]
-    unsafe fn eq<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+    fn eq<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
         Mask1::from_bool(a.0 == b.0)
     }
 
     #[inline(always)]
-    unsafe fn ne<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+    fn ne<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
         Mask1::from_bool(a.0 != b.0)
     }
 
     #[inline(always)]
-    unsafe fn lt<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+    fn lt<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
         // Lane: PartialOrd, so we can use < directly
         Mask1::from_bool(a.0 < b.0)
     }
 
     #[inline(always)]
-    unsafe fn le<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+    fn le<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
         Mask1::from_bool(a.0 <= b.0)
     }
 
     #[inline(always)]
-    unsafe fn gt<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+    fn gt<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
         Mask1::from_bool(a.0 > b.0)
     }
 
     #[inline(always)]
-    unsafe fn ge<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+    fn ge<T: Lane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
         Mask1::from_bool(a.0 >= b.0)
     }
 
     #[inline(always)]
-    unsafe fn test_bit<T: IntegerLane>(
+    fn test_bit<T: IntegerLane>(
         self,
         v: Vec1<T>,
         bit: Vec1<T>,
@@ -2084,12 +2084,12 @@ unsafe impl SimdCompare for Scalar {
 // SAFETY: All operations are plain Rust scalar ops on mask bits.
 unsafe impl SimdMask for Scalar {
     #[inline(always)]
-    unsafe fn mask_from_vec<T: Lane>(self, v: Vec1<T>) -> Mask1<T> {
+    fn mask_from_vec<T: Lane>(self, v: Vec1<T>) -> Mask1<T> {
         Mask1::from_bool(v.0 != T::default())
     }
 
     #[inline(always)]
-    unsafe fn vec_from_mask<T: Lane>(self, m: Mask1<T>) -> Vec1<T> {
+    fn vec_from_mask<T: Lane>(self, m: Mask1<T>) -> Vec1<T> {
         // Convert all-ones unsigned back to T via transmute.
         let mut result = T::default();
         // SAFETY: T::Unsigned and T have the same size (Lane invariant).
@@ -2104,33 +2104,33 @@ unsafe impl SimdMask for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn first_n<T: Lane>(self, n: usize) -> Mask1<T> {
+    fn first_n<T: Lane>(self, n: usize) -> Mask1<T> {
         // Scalar has 1 lane: true if n >= 1.
         Mask1::from_bool(n >= 1)
     }
 
     #[inline(always)]
-    unsafe fn count_true<T: Lane>(self, m: Mask1<T>) -> usize {
+    fn count_true<T: Lane>(self, m: Mask1<T>) -> usize {
         if m.to_bool() { 1 } else { 0 }
     }
 
     #[inline(always)]
-    unsafe fn all_true<T: Lane>(self, m: Mask1<T>) -> bool {
+    fn all_true<T: Lane>(self, m: Mask1<T>) -> bool {
         m.to_bool()
     }
 
     #[inline(always)]
-    unsafe fn all_false<T: Lane>(self, m: Mask1<T>) -> bool {
+    fn all_false<T: Lane>(self, m: Mask1<T>) -> bool {
         !m.to_bool()
     }
 
     #[inline(always)]
-    unsafe fn find_first_true<T: Lane>(self, m: Mask1<T>) -> Option<usize> {
+    fn find_first_true<T: Lane>(self, m: Mask1<T>) -> Option<usize> {
         if m.to_bool() { Some(0) } else { None }
     }
 
     #[inline(always)]
-    unsafe fn if_then_else<T: Lane>(
+    fn if_then_else<T: Lane>(
         self,
         mask: Mask1<T>,
         yes: Vec1<T>,
@@ -2140,7 +2140,7 @@ unsafe impl SimdMask for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn if_then_else_zero<T: Lane>(
+    fn if_then_else_zero<T: Lane>(
         self,
         mask: Mask1<T>,
         yes: Vec1<T>,
@@ -2149,7 +2149,7 @@ unsafe impl SimdMask for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn if_then_zero_else<T: Lane>(
+    fn if_then_zero_else<T: Lane>(
         self,
         mask: Mask1<T>,
         no: Vec1<T>,
@@ -2158,55 +2158,55 @@ unsafe impl SimdMask for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn and_mask<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
+    fn and_mask<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
         Mask1::from_bool(a.to_bool() && b.to_bool())
     }
 
     #[inline(always)]
-    unsafe fn or_mask<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
+    fn or_mask<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
         Mask1::from_bool(a.to_bool() || b.to_bool())
     }
 
     #[inline(always)]
-    unsafe fn not_mask<T: Lane>(self, m: Mask1<T>) -> Mask1<T> {
+    fn not_mask<T: Lane>(self, m: Mask1<T>) -> Mask1<T> {
         Mask1::from_bool(!m.to_bool())
     }
 
     #[inline(always)]
-    unsafe fn xor_mask<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
+    fn xor_mask<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
         Mask1::from_bool(a.to_bool() ^ b.to_bool())
     }
 
     #[inline(always)]
-    unsafe fn find_last_true<T: Lane>(self, m: Mask1<T>) -> Option<usize> {
+    fn find_last_true<T: Lane>(self, m: Mask1<T>) -> Option<usize> {
         if m.to_bool() { Some(0) } else { None }
     }
 
     #[inline(always)]
-    unsafe fn bits_from_mask<T: Lane>(self, m: Mask1<T>) -> u64 {
+    fn bits_from_mask<T: Lane>(self, m: Mask1<T>) -> u64 {
         if m.to_bool() { 1 } else { 0 }
     }
 
     #[inline(always)]
-    unsafe fn exclusive_neither<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
+    fn exclusive_neither<T: Lane>(self, a: Mask1<T>, b: Mask1<T>) -> Mask1<T> {
         // NOR: true only where neither a nor b is set (C++ ExclusiveNeither).
         Mask1::from_bool(!a.to_bool() && !b.to_bool())
     }
 
     #[inline(always)]
-    unsafe fn slide_mask_1_up<T: Lane>(self, _mask: Mask1<T>) -> Mask1<T> {
+    fn slide_mask_1_up<T: Lane>(self, _mask: Mask1<T>) -> Mask1<T> {
         // Single lane: shifting up fills with false, so result is always false
         Mask1::from_bool(false)
     }
 
     #[inline(always)]
-    unsafe fn slide_mask_1_down<T: Lane>(self, _mask: Mask1<T>) -> Mask1<T> {
+    fn slide_mask_1_down<T: Lane>(self, _mask: Mask1<T>) -> Mask1<T> {
         // Single lane: shifting down fills with false, so result is always false
         Mask1::from_bool(false)
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_else<T: Lane>(
+    fn if_negative_then_else<T: Lane>(
         self,
         v: Vec1<T>,
         yes: Vec1<T>,
@@ -2218,18 +2218,18 @@ unsafe impl SimdMask for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_else_zero<T: Lane>(self, v: Vec1<T>, yes: Vec1<T>) -> Vec1<T> {
+    fn if_negative_then_else_zero<T: Lane>(self, v: Vec1<T>, yes: Vec1<T>) -> Vec1<T> {
         if unsafe { is_negative_bits(v) } {
             yes
         } else {
-            unsafe { self.zero::<T>() }
+            self.zero::<T>()
         }
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_zero_else<T: Lane>(self, v: Vec1<T>, no: Vec1<T>) -> Vec1<T> {
+    fn if_negative_then_zero_else<T: Lane>(self, v: Vec1<T>, no: Vec1<T>) -> Vec1<T> {
         if unsafe { is_negative_bits(v) } {
-            unsafe { self.zero::<T>() }
+            self.zero::<T>()
         } else {
             no
         }
@@ -2269,7 +2269,7 @@ unsafe fn is_negative_bits<T: Lane>(v: Vec1<T>) -> bool {
 // SAFETY: All operations are plain Rust scalar conversions.
 unsafe impl SimdConvert for Scalar {
     #[inline(always)]
-    unsafe fn promote_to<N: NarrowLane>(
+    fn promote_to<N: NarrowLane>(
         self,
         v: Vec1<N>,
     ) -> Vec1<N::Wide>
@@ -2313,7 +2313,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn demote_to<W: WideLane>(
+    fn demote_to<W: WideLane>(
         self,
         v: Vec1<W>,
     ) -> Vec1<W::Narrow>
@@ -2356,7 +2356,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn convert_to_int<F: FloatLane>(self, v: Vec1<F>) -> Vec1<F::Int> {
+    fn convert_to_int<F: FloatLane>(self, v: Vec1<F>) -> Vec1<F::Int> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if core::mem::size_of::<F>() == 4 {
@@ -2372,7 +2372,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn convert_to_float<F: FloatLane>(self, v: Vec1<F::Int>) -> Vec1<F> {
+    fn convert_to_float<F: FloatLane>(self, v: Vec1<F::Int>) -> Vec1<F> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if core::mem::size_of::<F>() == 4 {
@@ -2388,7 +2388,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn truncate_to<W: WideLane>(self, v: Vec1<W>) -> Vec1<W::Narrow>
+    fn truncate_to<W: WideLane>(self, v: Vec1<W>) -> Vec1<W::Narrow>
     where
         W::Narrow: Lane,
     {
@@ -2428,7 +2428,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn ordered_demote_2_to<W: WideLane>(
+    fn ordered_demote_2_to<W: WideLane>(
         self,
         lo: Vec1<W>,
         _hi: Vec1<W>,
@@ -2437,11 +2437,11 @@ unsafe impl SimdConvert for Scalar {
         W::Narrow: Lane,
     {
         // Scalar has only 1 lane. Demote lo; hi is ignored (no room).
-        unsafe { self.demote_to(lo) }
+        self.demote_to(lo)
     }
 
     #[inline(always)]
-    unsafe fn nearest_int<F: FloatLane>(self, v: Vec1<F>) -> Vec1<F::Int> {
+    fn nearest_int<F: FloatLane>(self, v: Vec1<F>) -> Vec1<F::Int> {
         unsafe {
             if core::mem::size_of::<F>() == 4 {
                 let val: f32 = core::mem::transmute_copy(&v.0);
@@ -2465,7 +2465,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn reorder_demote_2_to<W: WideLane>(
+    fn reorder_demote_2_to<W: WideLane>(
         self,
         a: Vec1<W>,
         _b: Vec1<W>,
@@ -2474,35 +2474,35 @@ unsafe impl SimdConvert for Scalar {
         W::Narrow: Lane,
     {
         // Scalar: same as ordered_demote_2_to (just demote the first element)
-        unsafe { self.demote_to(a) }
+        self.demote_to(a)
     }
 
     #[inline(always)]
-    unsafe fn demote_in_range_to<W: WideLane>(self, v: Vec1<W>) -> Vec1<W::Narrow>
+    fn demote_in_range_to<W: WideLane>(self, v: Vec1<W>) -> Vec1<W::Narrow>
     where
         W::Narrow: Lane,
     {
         // In-range: same as demote_to for scalar (truncation)
-        unsafe { self.demote_to(v) }
+        self.demote_to(v)
     }
 
     #[inline(always)]
-    unsafe fn convert_in_range_to_int<F: FloatLane>(self, v: Vec1<F>) -> Vec1<F::Int> {
+    fn convert_in_range_to_int<F: FloatLane>(self, v: Vec1<F>) -> Vec1<F::Int> {
         // Same as convert_to_int for scalar (truncation toward zero)
-        unsafe { self.convert_to_int(v) }
+        self.convert_to_int(v)
     }
 
     #[inline(always)]
-    unsafe fn promote_lower_to<N: NarrowLane>(self, v: Vec1<N>) -> Vec1<N::Wide>
+    fn promote_lower_to<N: NarrowLane>(self, v: Vec1<N>) -> Vec1<N::Wide>
     where
         N::Wide: Lane,
     {
         // Scalar: lower half is the entire vector, just promote
-        unsafe { self.promote_to(v) }
+        self.promote_to(v)
     }
 
     #[inline(always)]
-    unsafe fn promote_upper_to<N: NarrowLane>(self, _v: Vec1<N>) -> Vec1<N::Wide>
+    fn promote_upper_to<N: NarrowLane>(self, _v: Vec1<N>) -> Vec1<N::Wide>
     where
         N::Wide: Lane,
     {
@@ -2511,7 +2511,7 @@ unsafe impl SimdConvert for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn ordered_truncate_2_to<W: WideLane>(
+    fn ordered_truncate_2_to<W: WideLane>(
         self,
         lo: Vec1<W>,
         _hi: Vec1<W>,
@@ -2520,7 +2520,7 @@ unsafe impl SimdConvert for Scalar {
         W::Narrow: Lane,
     {
         // Scalar has only 1 lane. Truncate lo; hi is ignored (no room).
-        unsafe { self.truncate_to(lo) }
+        self.truncate_to(lo)
     }
 }
 
@@ -2531,18 +2531,18 @@ unsafe impl SimdConvert for Scalar {
 // SAFETY: Scalar "shuffle" operations are trivial identity operations on a single lane.
 unsafe impl SimdShuffle for Scalar {
     #[inline(always)]
-    unsafe fn reverse<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         v // 1 element -> already reversed
     }
 
     #[inline(always)]
-    unsafe fn broadcast_lane<T: Lane, const IDX: usize>(self, v: Vec1<T>) -> Vec1<T> {
+    fn broadcast_lane<T: Lane, const IDX: usize>(self, v: Vec1<T>) -> Vec1<T> {
         debug_assert!(IDX == 0, "Scalar: broadcast_lane IDX must be 0");
         v
     }
 
     #[inline(always)]
-    unsafe fn interleave_lower<T: Lane>(
+    fn interleave_lower<T: Lane>(
         self,
         a: Vec1<T>,
         _b: Vec1<T>,
@@ -2551,7 +2551,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn interleave_upper<T: Lane>(
+    fn interleave_upper<T: Lane>(
         self,
         _a: Vec1<T>,
         b: Vec1<T>,
@@ -2560,7 +2560,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn zip_lower<T: Lane>(
+    fn zip_lower<T: Lane>(
         self,
         a: Vec1<T>,
         _b: Vec1<T>,
@@ -2569,7 +2569,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn zip_upper<T: Lane>(
+    fn zip_upper<T: Lane>(
         self,
         _a: Vec1<T>,
         b: Vec1<T>,
@@ -2578,7 +2578,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_bytes<T: Lane>(
+    fn table_lookup_bytes<T: Lane>(
         self,
         table: Vec1<T>,
         _idx: Vec1<T>,
@@ -2589,7 +2589,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_lanes<T: Lane, I: IntegerLane>(
+    fn table_lookup_lanes<T: Lane, I: IntegerLane>(
         self,
         v: Vec1<T>,
         _idx: Vec1<I>,
@@ -2598,22 +2598,22 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn reverse2<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse2<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         v // 1 element
     }
 
     #[inline(always)]
-    unsafe fn reverse4<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse4<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         v
     }
 
     #[inline(always)]
-    unsafe fn reverse8<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse8<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         v
     }
 
     #[inline(always)]
-    unsafe fn concat_upper_lower<T: Lane>(
+    fn concat_upper_lower<T: Lane>(
         self,
         hi: Vec1<T>,
         _lo: Vec1<T>,
@@ -2624,7 +2624,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn concat_lower_upper<T: Lane>(
+    fn concat_lower_upper<T: Lane>(
         self,
         hi: Vec1<T>,
         _lo: Vec1<T>,
@@ -2633,7 +2633,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn concat_even<T: Lane>(
+    fn concat_even<T: Lane>(
         self,
         a: Vec1<T>,
         _b: Vec1<T>,
@@ -2642,7 +2642,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn concat_odd<T: Lane>(
+    fn concat_odd<T: Lane>(
         self,
         _a: Vec1<T>,
         b: Vec1<T>,
@@ -2651,7 +2651,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn odd_even<T: Lane>(
+    fn odd_even<T: Lane>(
         self,
         _odd: Vec1<T>,
         even: Vec1<T>,
@@ -2660,17 +2660,17 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn slide_up_lanes<T: Lane>(self, v: Vec1<T>, n: usize) -> Vec1<T> {
+    fn slide_up_lanes<T: Lane>(self, v: Vec1<T>, n: usize) -> Vec1<T> {
         if n > 0 { Vec1(T::default()) } else { v }
     }
 
     #[inline(always)]
-    unsafe fn slide_down_lanes<T: Lane>(self, v: Vec1<T>, n: usize) -> Vec1<T> {
+    fn slide_down_lanes<T: Lane>(self, v: Vec1<T>, n: usize) -> Vec1<T> {
         if n > 0 { Vec1(T::default()) } else { v }
     }
 
     #[inline(always)]
-    unsafe fn compress<T: Lane>(self, v: Vec1<T>, mask: Mask1<T>) -> Vec1<T> {
+    fn compress<T: Lane>(self, v: Vec1<T>, mask: Mask1<T>) -> Vec1<T> {
         if mask.to_bool() { v } else { Vec1(T::default()) }
     }
 
@@ -2690,19 +2690,19 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn dup_even<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn dup_even<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         // Only 1 lane (lane 0 = even), identity.
         v
     }
 
     #[inline(always)]
-    unsafe fn dup_odd<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
+    fn dup_odd<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
         // No odd lane to duplicate; return zero.
         Vec1(T::default())
     }
 
     #[inline(always)]
-    unsafe fn concat_lower_lower<T: Lane>(
+    fn concat_lower_lower<T: Lane>(
         self,
         _hi: Vec1<T>,
         lo: Vec1<T>,
@@ -2712,7 +2712,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn concat_upper_upper<T: Lane>(
+    fn concat_upper_upper<T: Lane>(
         self,
         _hi: Vec1<T>,
         _lo: Vec1<T>,
@@ -2722,24 +2722,24 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn slide_1_up<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
+    fn slide_1_up<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
         // Shift up by 1: lane 0 gets zero (original was shifted to non-existent lane 1).
         Vec1(T::default())
     }
 
     #[inline(always)]
-    unsafe fn slide_1_down<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
+    fn slide_1_down<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
         // Shift down by 1: lane 0 gets value from non-existent lane 1, so zero.
         Vec1(T::default())
     }
 
     #[inline(always)]
-    unsafe fn expand<T: Lane>(self, v: Vec1<T>, mask: Mask1<T>) -> Vec1<T> {
+    fn expand<T: Lane>(self, v: Vec1<T>, mask: Mask1<T>) -> Vec1<T> {
         if mask.to_bool() { v } else { Vec1(T::default()) }
     }
 
     #[inline(always)]
-    unsafe fn combine_shift_right_bytes<T: Lane, const BYTES: usize>(
+    fn combine_shift_right_bytes<T: Lane, const BYTES: usize>(
         self,
         _hi: Vec1<T>,
         _lo: Vec1<T>,
@@ -2764,7 +2764,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn odd_even_blocks<T: Lane>(
+    fn odd_even_blocks<T: Lane>(
         self,
         _odd: Vec1<T>,
         even: Vec1<T>,
@@ -2774,24 +2774,24 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn reverse_blocks<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn reverse_blocks<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         // Scalar: only 1 block, nothing to reverse.
         v
     }
 
     #[inline(always)]
-    unsafe fn compress_not<T: Lane>(self, v: Vec1<T>, mask: Mask1<T>) -> Vec1<T> {
-        unsafe { self.compress(v, self.not_mask(mask)) }
+    fn compress_not<T: Lane>(self, v: Vec1<T>, mask: Mask1<T>) -> Vec1<T> {
+        self.compress(v, self.not_mask(mask))
     }
 
     #[inline(always)]
-    unsafe fn compress_blocks_not(self, v: Vec1<u64>, _mask: Mask1<u64>) -> Vec1<u64> {
+    fn compress_blocks_not(self, v: Vec1<u64>, _mask: Mask1<u64>) -> Vec1<u64> {
         // Single block, no-op
         v
     }
 
     #[inline(always)]
-    unsafe fn broadcast_block<T: Lane, const IDX: usize>(self, v: Vec1<T>) -> Vec1<T> {
+    fn broadcast_block<T: Lane, const IDX: usize>(self, v: Vec1<T>) -> Vec1<T> {
         // Single block, return as-is (IDX must be 0)
         v
     }
@@ -2818,53 +2818,53 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn lower_half<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn lower_half<T: Lane>(self, v: Vec1<T>) -> Vec1<T> {
         v
     }
 
     #[inline(always)]
-    unsafe fn upper_half<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
+    fn upper_half<T: Lane>(self, _v: Vec1<T>) -> Vec1<T> {
         Vec1(T::default())
     }
 
     #[inline(always)]
-    unsafe fn combine<T: Lane>(self, lo: Vec1<T>, _hi: Vec1<T>) -> Vec1<T> {
+    fn combine<T: Lane>(self, lo: Vec1<T>, _hi: Vec1<T>) -> Vec1<T> {
         lo
     }
 
     #[inline(always)]
-    unsafe fn insert_block<T: Lane, const IDX: usize>(self, _v: Vec1<T>, blk: Vec1<T>) -> Vec1<T> {
+    fn insert_block<T: Lane, const IDX: usize>(self, _v: Vec1<T>, blk: Vec1<T>) -> Vec1<T> {
         blk
     }
 
     #[inline(always)]
-    unsafe fn extract_block<T: Lane, const IDX: usize>(self, v: Vec1<T>) -> Vec1<T> {
+    fn extract_block<T: Lane, const IDX: usize>(self, v: Vec1<T>) -> Vec1<T> {
         v
     }
 
     #[inline(always)]
-    unsafe fn interleave_whole_lower<T: Lane>(self, a: Vec1<T>, _b: Vec1<T>) -> Vec1<T> {
+    fn interleave_whole_lower<T: Lane>(self, a: Vec1<T>, _b: Vec1<T>) -> Vec1<T> {
         // Single element: same as interleave_lower
         a
     }
 
     #[inline(always)]
-    unsafe fn interleave_whole_upper<T: Lane>(self, _a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn interleave_whole_upper<T: Lane>(self, _a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         b
     }
 
     #[inline(always)]
-    unsafe fn interleave_even<T: Lane>(self, a: Vec1<T>, _b: Vec1<T>) -> Vec1<T> {
+    fn interleave_even<T: Lane>(self, a: Vec1<T>, _b: Vec1<T>) -> Vec1<T> {
         a
     }
 
     #[inline(always)]
-    unsafe fn interleave_odd<T: Lane>(self, _a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn interleave_odd<T: Lane>(self, _a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         b
     }
 
     #[inline(always)]
-    unsafe fn two_tables_lookup_lanes<T: Lane, I: IntegerLane>(
+    fn two_tables_lookup_lanes<T: Lane, I: IntegerLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -2883,7 +2883,7 @@ unsafe impl SimdShuffle for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_lanes_or0<T: Lane, I: IntegerLane>(
+    fn table_lookup_lanes_or0<T: Lane, I: IntegerLane>(
         self,
         v: Vec1<T>,
         idx: Vec1<I>,
@@ -2907,22 +2907,22 @@ unsafe impl SimdShuffle for Scalar {
 // SAFETY: Scalar reductions are identity operations on a single lane.
 unsafe impl SimdReduce for Scalar {
     #[inline(always)]
-    unsafe fn sum_of_lanes<T: Lane>(self, v: Vec1<T>) -> T {
+    fn sum_of_lanes<T: Lane>(self, v: Vec1<T>) -> T {
         v.0
     }
 
     #[inline(always)]
-    unsafe fn min_of_lanes<T: Lane>(self, v: Vec1<T>) -> T {
+    fn min_of_lanes<T: Lane>(self, v: Vec1<T>) -> T {
         v.0
     }
 
     #[inline(always)]
-    unsafe fn max_of_lanes<T: Lane>(self, v: Vec1<T>) -> T {
+    fn max_of_lanes<T: Lane>(self, v: Vec1<T>) -> T {
         v.0
     }
 
     #[inline(always)]
-    unsafe fn sums_of_8_abs_diff(
+    fn sums_of_8_abs_diff(
         self,
         a: Vec1<u8>,
         b: Vec1<u8>,
@@ -2932,7 +2932,7 @@ unsafe impl SimdReduce for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_2<T: NarrowLane>(self, v: Vec1<T>) -> Vec1<T::Wide>
+    fn sums_of_2<T: NarrowLane>(self, v: Vec1<T>) -> Vec1<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -2972,7 +2972,7 @@ unsafe impl SimdReduce for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_4<T: NarrowLane>(
+    fn sums_of_4<T: NarrowLane>(
         self,
         v: Vec1<T>,
     ) -> Vec1<<T::Wide as NarrowLane>::Wide>
@@ -2981,7 +2981,7 @@ unsafe impl SimdReduce for Scalar {
         <T::Wide as NarrowLane>::Wide: Lane,
     {
         // Scalar: sums_of_2(sums_of_2(v)). With 1 lane, this is just double-widen.
-        unsafe {
+        {
             let mid = self.sums_of_2(v);
             self.sums_of_2(mid)
         }
@@ -2995,7 +2995,7 @@ unsafe impl SimdReduce for Scalar {
 // SAFETY: All operations delegate to scalar float math.
 unsafe impl SimdFloat for Scalar {
     #[inline(always)]
-    unsafe fn sqrt<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn sqrt<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3011,7 +3011,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn approx_reciprocal<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn approx_reciprocal<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3027,7 +3027,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn approx_reciprocal_sqrt<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn approx_reciprocal_sqrt<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3043,7 +3043,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn round<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn round<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3059,7 +3059,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn trunc<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn trunc<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3075,7 +3075,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn ceil<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn ceil<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3091,7 +3091,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn floor<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn floor<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3107,7 +3107,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn mul_add<T: FloatLane>(
+    fn mul_add<T: FloatLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -3132,7 +3132,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn neg_mul_add<T: FloatLane>(
+    fn neg_mul_add<T: FloatLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -3158,7 +3158,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn mul_sub<T: FloatLane>(
+    fn mul_sub<T: FloatLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -3184,7 +3184,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn neg_mul_sub<T: FloatLane>(
+    fn neg_mul_sub<T: FloatLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -3210,7 +3210,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn copy_sign<T: FloatLane>(
+    fn copy_sign<T: FloatLane>(
         self,
         mag: Vec1<T>,
         sign: Vec1<T>,
@@ -3232,7 +3232,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn is_nan<T: FloatLane>(self, v: Vec1<T>) -> Mask1<T> {
+    fn is_nan<T: FloatLane>(self, v: Vec1<T>) -> Mask1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3246,7 +3246,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn is_inf<T: FloatLane>(self, v: Vec1<T>) -> Mask1<T> {
+    fn is_inf<T: FloatLane>(self, v: Vec1<T>) -> Mask1<T> {
         // SAFETY: transmute_copy between same-sized types; type identity verified via is_type or size check.
         unsafe {
             if core::mem::size_of::<T>() == 4 {
@@ -3260,7 +3260,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn zero_if_negative<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
+    fn zero_if_negative<T: FloatLane>(self, v: Vec1<T>) -> Vec1<T> {
         unsafe {
             if core::mem::size_of::<T>() == 4 {
                 let val: f32 = core::mem::transmute_copy(&v.0);
@@ -3275,7 +3275,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn is_finite<T: FloatLane>(self, v: Vec1<T>) -> Mask1<T> {
+    fn is_finite<T: FloatLane>(self, v: Vec1<T>) -> Mask1<T> {
         unsafe {
             if core::mem::size_of::<T>() == 4 {
                 let val: f32 = core::mem::transmute_copy(&v.0);
@@ -3288,7 +3288,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn add_sub<T: FloatLane>(
+    fn add_sub<T: FloatLane>(
         self,
         a: Vec1<T>,
         b: Vec1<T>,
@@ -3310,7 +3310,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn min_number<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn min_number<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if crate::lane::is_type::<T, f32>() {
                 let va: f32 = core::mem::transmute_copy(&a.0);
@@ -3327,7 +3327,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn max_number<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn max_number<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if crate::lane::is_type::<T, f32>() {
                 let va: f32 = core::mem::transmute_copy(&a.0);
@@ -3344,7 +3344,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn min_magnitude<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn min_magnitude<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if crate::lane::is_type::<T, f32>() {
                 let va: f32 = core::mem::transmute_copy(&a.0);
@@ -3365,7 +3365,7 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn max_magnitude<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
+    fn max_magnitude<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Vec1<T> {
         unsafe {
             if crate::lane::is_type::<T, f32>() {
                 let va: f32 = core::mem::transmute_copy(&a.0);
@@ -3386,8 +3386,8 @@ unsafe impl SimdFloat for Scalar {
     }
 
     #[inline(always)]
-    unsafe fn is_either_nan<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
-        unsafe { self.or_mask(self.is_nan(a), self.is_nan(b)) }
+    fn is_either_nan<T: FloatLane>(self, a: Vec1<T>, b: Vec1<T>) -> Mask1<T> {
+        self.or_mask(self.is_nan(a), self.is_nan(b))
     }
 }
 
@@ -3397,6 +3397,7 @@ unsafe impl SimdFloat for Scalar {
 
 #[cfg(test)]
 mod tests {
+    #![allow(unused_unsafe)]
     use super::*;
 
     #[test]

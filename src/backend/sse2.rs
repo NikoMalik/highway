@@ -23,8 +23,30 @@ use crate::{A16, Aligned};
 // ---------------------------------------------------------------------------
 
 /// The SSE2 SIMD target (128-bit vectors).
+///
+/// This token is a *proof* that SSE2 is available on the running CPU: it cannot
+/// be constructed from safe code (the inner field is private). It is handed to
+/// kernels only by the dispatch machinery after a runtime feature check, which
+/// is why all SSE2 vector operations can have safe signatures.
 #[derive(Clone, Copy, Debug)]
-pub struct Sse2;
+pub struct Sse2(());
+
+impl Sse2 {
+    /// Construct an SSE2 token without checking CPU support.
+    ///
+    /// # Safety
+    /// The caller must ensure SSE2 is available on the running CPU. Prefer
+    /// obtaining a token through `dispatch`/`dispatch_to`, which checks at runtime.
+    #[inline(always)]
+    pub unsafe fn new_unchecked() -> Self {
+        Sse2(())
+    }
+
+    #[inline(always)]
+    pub(crate) fn new() -> Self {
+        Sse2(())
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Vector and Mask types
@@ -102,12 +124,12 @@ unsafe impl Simd for Sse2 {
 // dispatch trampoline. Callers through dispatch() always have SSE2 available.
 unsafe impl SimdCore for Sse2 {
     #[inline(always)]
-    unsafe fn zero<T: Lane>(self) -> V128<T> {
+    fn zero<T: Lane>(self) -> V128<T> {
         V128::from_raw(unsafe { _mm_setzero_si128() })
     }
 
     #[inline(always)]
-    unsafe fn splat<T: Lane>(self, value: T) -> V128<T> {
+    fn splat<T: Lane>(self, value: T) -> V128<T> {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -132,13 +154,13 @@ unsafe impl SimdCore for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn undefined<T: Lane>(self) -> V128<T> {
+    fn undefined<T: Lane>(self) -> V128<T> {
         // SAFETY: Same as zero for safety; undefined allows optimizer freedom.
         V128::from_raw(unsafe { _mm_setzero_si128() })
     }
 
     #[inline(always)]
-    unsafe fn bitcast<T: Lane, U: Lane>(self, v: V128<T>) -> V128<U> {
+    fn bitcast<T: Lane, U: Lane>(self, v: V128<T>) -> V128<U> {
         V128::from_raw(v.raw)
     }
 
@@ -174,7 +196,7 @@ unsafe impl SimdCore for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn iota<T: Lane>(self, base: T) -> V128<T> {
+    fn iota<T: Lane>(self, base: T) -> V128<T> {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -557,7 +579,7 @@ unsafe impl SimdMemory for Sse2 {
 // SAFETY: All intrinsics require SSE2, guaranteed by dispatch trampoline.
 unsafe impl SimdArith for Sse2 {
     #[inline(always)]
-    unsafe fn add<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn add<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm_add_epi8(a.raw, b.raw),
@@ -591,7 +613,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn sub<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn sub<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm_sub_epi8(a.raw, b.raw),
@@ -623,7 +645,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn mul<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn mul<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -683,7 +705,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn div<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn div<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm_castps_si128(_mm_div_ps(_mm_castsi128_ps(a.raw), _mm_castsi128_ps(b.raw)))
@@ -695,7 +717,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn saturated_add<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn saturated_add<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -772,7 +794,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn saturated_sub<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn saturated_sub<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -845,7 +867,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn abs<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn abs<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             // For floats: clear sign bit. For signed ints: negate if negative.
             if is_type::<T, f32>() {
@@ -902,7 +924,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn neg<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn neg<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if is_type::<T, f32>() {
                 let sign_bit = _mm_set1_epi32(0x8000_0000u32 as i32);
@@ -929,7 +951,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn min<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn min<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             if is_type::<T, f32>() {
                 V128::from_raw(_mm_castps_si128(_mm_min_ps(
@@ -957,7 +979,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn max<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn max<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             if is_type::<T, f32>() {
                 V128::from_raw(_mm_castps_si128(_mm_max_ps(
@@ -984,7 +1006,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_high<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn mul_high<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -1061,7 +1083,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn average_round<T: UnsignedLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn average_round<T: UnsignedLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm_avg_epu8(a.raw, b.raw),
@@ -1090,9 +1112,9 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn abs_diff<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn abs_diff<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // |a - b| = max(a, b) - min(a, b), which is always non-negative.
-        unsafe {
+        {
             let hi = self.max(a, b);
             let lo = self.min(a, b);
             self.sub(hi, lo)
@@ -1100,12 +1122,12 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn clamp<T: Lane>(self, v: V128<T>, lo: V128<T>, hi: V128<T>) -> V128<T> {
-        unsafe { self.min(self.max(v, lo), hi) }
+    fn clamp<T: Lane>(self, v: V128<T>, lo: V128<T>, hi: V128<T>) -> V128<T> {
+        self.min(self.max(v, lo), hi)
     }
 
     #[inline(always)]
-    unsafe fn mul_even<T: NarrowLane>(self, a: V128<T>, b: V128<T>) -> V128<T::Wide>
+    fn mul_even<T: NarrowLane>(self, a: V128<T>, b: V128<T>) -> V128<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -1182,7 +1204,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_odd<T: NarrowLane>(self, a: V128<T>, b: V128<T>) -> V128<T::Wide>
+    fn mul_odd<T: NarrowLane>(self, a: V128<T>, b: V128<T>) -> V128<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -1254,7 +1276,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn widen_mul_pairwise_add_i16(
+    fn widen_mul_pairwise_add_i16(
         self,
         a: V128<i16>,
         b: V128<i16>,
@@ -1263,7 +1285,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn sat_widen_mul_pairwise_add(
+    fn sat_widen_mul_pairwise_add(
         self,
         a: V128<u8>,
         b: V128<i8>,
@@ -1290,7 +1312,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_fixed_point_15(
+    fn mul_fixed_point_15(
         self,
         a: V128<i16>,
         b: V128<i16>,
@@ -1315,7 +1337,7 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reorder_widen_mul_accumulate(
+    fn reorder_widen_mul_accumulate(
         self,
         a: V128<i16>,
         b: V128<i16>,
@@ -1325,38 +1347,38 @@ unsafe impl SimdArith for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn saturated_neg<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
-        unsafe { self.saturated_sub(self.zero::<T>(), v) }
+    fn saturated_neg<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+        self.saturated_sub(self.zero::<T>(), v)
     }
 
     #[inline(always)]
-    unsafe fn saturated_abs<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
-        unsafe { self.max(v, self.saturated_neg(v)) }
+    fn saturated_abs<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+        self.max(v, self.saturated_neg(v))
     }
 
     #[inline(always)]
-    unsafe fn masked_min_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe { self.if_then_else(mask, self.min(a, b), no) }
+    fn masked_min_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+        self.if_then_else(mask, self.min(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_max_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe { self.if_then_else(mask, self.max(a, b), no) }
+    fn masked_max_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+        self.if_then_else(mask, self.max(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_add_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe { self.if_then_else(mask, self.add(a, b), no) }
+    fn masked_add_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+        self.if_then_else(mask, self.add(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_sub_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe { self.if_then_else(mask, self.sub(a, b), no) }
+    fn masked_sub_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+        self.if_then_else(mask, self.sub(a, b), no)
     }
 
     #[inline(always)]
-    unsafe fn masked_mul_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe { self.if_then_else(mask, self.mul(a, b), no) }
+    fn masked_mul_or<T: Lane>(self, no: V128<T>, mask: M128<T>, a: V128<T>, b: V128<T>) -> V128<T> {
+        self.if_then_else(mask, self.mul(a, b), no)
     }
 }
 
@@ -1367,34 +1389,34 @@ unsafe impl SimdArith for Sse2 {
 // SAFETY: All intrinsics require SSE2.
 unsafe impl SimdBitwise for Sse2 {
     #[inline(always)]
-    unsafe fn and<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn and<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         V128::from_raw(unsafe { _mm_and_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn or<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn or<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         V128::from_raw(unsafe { _mm_or_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn xor<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn xor<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         V128::from_raw(unsafe { _mm_xor_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn not<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn not<T: Lane>(self, v: V128<T>) -> V128<T> {
         let all_ones = unsafe { _mm_set1_epi8(!0) };
         V128::from_raw(unsafe { _mm_xor_si128(v.raw, all_ones) })
     }
 
     #[inline(always)]
-    unsafe fn and_not<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn and_not<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // _mm_andnot_si128 computes ~a & b
         V128::from_raw(unsafe { _mm_andnot_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn shift_left<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1414,7 +1436,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn shift_right<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(BITS as i64);
             let raw = match T::BYTES {
@@ -1469,7 +1491,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn rotate_right<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let type_bits = (T::BYTES * 8) as u32;
             let right = BITS % type_bits;
@@ -1514,7 +1536,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_left_same<T: IntegerLane>(self, v: V128<T>, bits: u32) -> V128<T> {
+    fn shift_left_same<T: IntegerLane>(self, v: V128<T>, bits: u32) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1533,7 +1555,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_right_same<T: IntegerLane>(self, v: V128<T>, bits: u32) -> V128<T> {
+    fn shift_right_same<T: IntegerLane>(self, v: V128<T>, bits: u32) -> V128<T> {
         unsafe {
             let count = _mm_cvtsi64_si128(bits as i64);
             let raw = match T::BYTES {
@@ -1588,7 +1610,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V128<T>) -> V128<T> {
+    fn shift_left_bytes<T: Lane, const BYTES: usize>(self, v: V128<T>) -> V128<T> {
         // Shift the entire 128-bit register left by BYTES bytes, zero-filling from the right.
         // _mm_slli_si128 requires const i32, so we dispatch on BYTES value.
         unsafe {
@@ -1616,7 +1638,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V128<T>) -> V128<T> {
+    fn shift_right_bytes<T: Lane, const BYTES: usize>(self, v: V128<T>) -> V128<T> {
         // Shift the entire 128-bit register right by BYTES bytes, zero-filling from the left.
         // _mm_srli_si128 requires const i32, so we dispatch on BYTES value.
         unsafe {
@@ -1644,7 +1666,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn population_count<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+    fn population_count<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
         // SSE2 bit-manipulation popcount (no pshufb needed).
         // See https://arxiv.org/pdf/1611.07612.pdf, Figure 3
         unsafe {
@@ -1705,7 +1727,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn leading_zero_count<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+    fn leading_zero_count<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
         // SSE2 LZC via float conversion trick: convert to f32, extract biased
         // exponent to determine position of highest set bit.
         unsafe {
@@ -1779,7 +1801,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn trailing_zero_count<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+    fn trailing_zero_count<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
         // tzcnt(v) = popcount((v - 1) & ~v)
         // This leverages the SIMD population_count we already have.
         unsafe {
@@ -1796,7 +1818,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse_lane_bytes<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn reverse_lane_bytes<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -1835,7 +1857,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse_bits<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+    fn reverse_bits<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
         // SSE2 bit-reversal: three swap steps for u8, then reverse lane bytes
         // for wider types. Uses 16-bit shifts since SSE2 has no 8-bit shifts.
         unsafe {
@@ -1872,7 +1894,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shl<T: IntegerLane>(
+    fn shl<T: IntegerLane>(
         self,
         v: V128<T>,
         bits: V128<T>,
@@ -1932,7 +1954,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn shr<T: IntegerLane>(
+    fn shr<T: IntegerLane>(
         self,
         v: V128<T>,
         bits: V128<T>,
@@ -2019,7 +2041,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn ror<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn ror<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let mut result = [0u8; 16];
@@ -2066,7 +2088,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn rol<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn rol<T: IntegerLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let mut result = [0u8; 16];
@@ -2107,7 +2129,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
+    fn rotate_left<T: IntegerLane, const BITS: u32>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let lanes = 16 / T::BYTES;
             let mut result = [0u8; 16];
@@ -2139,7 +2161,7 @@ unsafe impl SimdBitwise for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn broadcast_sign_bit<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
+    fn broadcast_sign_bit<T: IntegerLane>(self, v: V128<T>) -> V128<T> {
         // All-ones if the MSB (sign bit) is set, else all-zeros. Matches C++ Highway.
         unsafe {
             let raw = match T::BYTES {
@@ -2164,7 +2186,7 @@ unsafe impl SimdBitwise for Sse2 {
 // SAFETY: All intrinsics require SSE2.
 unsafe impl SimdCompare for Sse2 {
     #[inline(always)]
-    unsafe fn eq<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+    fn eq<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm_castps_si128(_mm_cmpeq_ps(
@@ -2195,7 +2217,7 @@ unsafe impl SimdCompare for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn ne<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+    fn ne<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         unsafe {
             let eq = self.eq::<T>(a, b);
             let all_ones = _mm_set1_epi8(!0);
@@ -2204,7 +2226,7 @@ unsafe impl SimdCompare for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn lt<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+    fn lt<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         unsafe {
             let raw = if is_type::<T, f32>() {
                 _mm_castps_si128(_mm_cmplt_ps(
@@ -2278,7 +2300,7 @@ unsafe impl SimdCompare for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn le<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+    fn le<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         unsafe {
             if is_type::<T, f32>() {
                 M128::from_raw(_mm_castps_si128(_mm_cmple_ps(
@@ -2300,19 +2322,19 @@ unsafe impl SimdCompare for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn gt<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+    fn gt<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         // gt(a, b) = lt(b, a)
-        unsafe { self.lt(b, a) }
+        self.lt(b, a)
     }
 
     #[inline(always)]
-    unsafe fn ge<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+    fn ge<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         // ge(a, b) = le(b, a)
-        unsafe { self.le(b, a) }
+        self.le(b, a)
     }
 
     #[inline(always)]
-    unsafe fn test_bit<T: IntegerLane>(self, v: V128<T>, bit: V128<T>) -> M128<T> {
+    fn test_bit<T: IntegerLane>(self, v: V128<T>, bit: V128<T>) -> M128<T> {
         unsafe {
             let anded = _mm_and_si128(v.raw, bit.raw);
             let zero = _mm_setzero_si128();
@@ -2341,7 +2363,7 @@ unsafe impl SimdCompare for Sse2 {
 // SAFETY: All intrinsics require SSE2.
 unsafe impl SimdMask for Sse2 {
     #[inline(always)]
-    unsafe fn mask_from_vec<T: Lane>(self, v: V128<T>) -> M128<T> {
+    fn mask_from_vec<T: Lane>(self, v: V128<T>) -> M128<T> {
         unsafe {
             // Non-zero -> all-ones mask per lane
             let zero = _mm_setzero_si128();
@@ -2362,12 +2384,12 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn vec_from_mask<T: Lane>(self, m: M128<T>) -> V128<T> {
+    fn vec_from_mask<T: Lane>(self, m: M128<T>) -> V128<T> {
         V128::from_raw(m.raw)
     }
 
     #[inline(always)]
-    unsafe fn first_n<T: Lane>(self, n: usize) -> M128<T> {
+    fn first_n<T: Lane>(self, n: usize) -> M128<T> {
         unsafe {
             // Create iota [0, 1, 2, ..., lanes-1] and compare < n.
             // Since all values are small positive integers, signed comparison works.
@@ -2400,7 +2422,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn count_true<T: Lane>(self, m: M128<T>) -> usize {
+    fn count_true<T: Lane>(self, m: M128<T>) -> usize {
         unsafe {
             // Count lanes with all bits set. Use movemask.
             match T::BYTES {
@@ -2414,17 +2436,17 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn all_true<T: Lane>(self, m: M128<T>) -> bool {
+    fn all_true<T: Lane>(self, m: M128<T>) -> bool {
         unsafe { _mm_movemask_epi8(m.raw) == 0xFFFF }
     }
 
     #[inline(always)]
-    unsafe fn all_false<T: Lane>(self, m: M128<T>) -> bool {
+    fn all_false<T: Lane>(self, m: M128<T>) -> bool {
         unsafe { _mm_movemask_epi8(m.raw) == 0 }
     }
 
     #[inline(always)]
-    unsafe fn find_first_true<T: Lane>(self, m: M128<T>) -> Option<usize> {
+    fn find_first_true<T: Lane>(self, m: M128<T>) -> Option<usize> {
         unsafe {
             let bits = match T::BYTES {
                 1 => _mm_movemask_epi8(m.raw) as u32,
@@ -2454,7 +2476,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn if_then_else<T: Lane>(self, mask: M128<T>, yes: V128<T>, no: V128<T>) -> V128<T> {
+    fn if_then_else<T: Lane>(self, mask: M128<T>, yes: V128<T>, no: V128<T>) -> V128<T> {
         unsafe {
             // (mask & yes) | (~mask & no)
             V128::from_raw(_mm_or_si128(
@@ -2465,37 +2487,37 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn if_then_else_zero<T: Lane>(self, mask: M128<T>, yes: V128<T>) -> V128<T> {
+    fn if_then_else_zero<T: Lane>(self, mask: M128<T>, yes: V128<T>) -> V128<T> {
         V128::from_raw(unsafe { _mm_and_si128(mask.raw, yes.raw) })
     }
 
     #[inline(always)]
-    unsafe fn if_then_zero_else<T: Lane>(self, mask: M128<T>, no: V128<T>) -> V128<T> {
+    fn if_then_zero_else<T: Lane>(self, mask: M128<T>, no: V128<T>) -> V128<T> {
         V128::from_raw(unsafe { _mm_andnot_si128(mask.raw, no.raw) })
     }
 
     #[inline(always)]
-    unsafe fn and_mask<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
+    fn and_mask<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
         M128::from_raw(unsafe { _mm_and_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn or_mask<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
+    fn or_mask<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
         M128::from_raw(unsafe { _mm_or_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn not_mask<T: Lane>(self, m: M128<T>) -> M128<T> {
+    fn not_mask<T: Lane>(self, m: M128<T>) -> M128<T> {
         M128::from_raw(unsafe { _mm_xor_si128(m.raw, _mm_set1_epi8(!0)) })
     }
 
     #[inline(always)]
-    unsafe fn xor_mask<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
+    fn xor_mask<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
         M128::from_raw(unsafe { _mm_xor_si128(a.raw, b.raw) })
     }
 
     #[inline(always)]
-    unsafe fn find_last_true<T: Lane>(self, m: M128<T>) -> Option<usize> {
+    fn find_last_true<T: Lane>(self, m: M128<T>) -> Option<usize> {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -2537,7 +2559,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn bits_from_mask<T: Lane>(self, m: M128<T>) -> u64 {
+    fn bits_from_mask<T: Lane>(self, m: M128<T>) -> u64 {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -2561,7 +2583,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn exclusive_neither<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
+    fn exclusive_neither<T: Lane>(self, a: M128<T>, b: M128<T>) -> M128<T> {
         // NOR: true only where neither a nor b is set (C++ ExclusiveNeither).
         // ~(a | b) = andnot(a, ~b) = (~a) & (~b).
         unsafe {
@@ -2572,8 +2594,8 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_mask_1_up<T: Lane>(self, mask: M128<T>) -> M128<T> {
-        unsafe {
+    fn slide_mask_1_up<T: Lane>(self, mask: M128<T>) -> M128<T> {
+        {
             let v = self.vec_from_mask::<T>(mask);
             let slid = self.slide_1_up(v);
             self.mask_from_vec(slid)
@@ -2581,8 +2603,8 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_mask_1_down<T: Lane>(self, mask: M128<T>) -> M128<T> {
-        unsafe {
+    fn slide_mask_1_down<T: Lane>(self, mask: M128<T>) -> M128<T> {
+        {
             let v = self.vec_from_mask::<T>(mask);
             let slid = self.slide_1_down(v);
             self.mask_from_vec(slid)
@@ -2590,7 +2612,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_else<T: Lane>(self, v: V128<T>, yes: V128<T>, no: V128<T>) -> V128<T> {
+    fn if_negative_then_else<T: Lane>(self, v: V128<T>, yes: V128<T>, no: V128<T>) -> V128<T> {
         unsafe {
             let sign = sse2_sign_mask::<T>(v.raw);
             let r = _mm_or_si128(_mm_and_si128(sign, yes.raw), _mm_andnot_si128(sign, no.raw));
@@ -2599,7 +2621,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_else_zero<T: Lane>(self, v: V128<T>, yes: V128<T>) -> V128<T> {
+    fn if_negative_then_else_zero<T: Lane>(self, v: V128<T>, yes: V128<T>) -> V128<T> {
         unsafe {
             let sign = sse2_sign_mask::<T>(v.raw);
             V128::from_raw(_mm_and_si128(sign, yes.raw))
@@ -2607,7 +2629,7 @@ unsafe impl SimdMask for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn if_negative_then_zero_else<T: Lane>(self, v: V128<T>, no: V128<T>) -> V128<T> {
+    fn if_negative_then_zero_else<T: Lane>(self, v: V128<T>, no: V128<T>) -> V128<T> {
         unsafe {
             let sign = sse2_sign_mask::<T>(v.raw);
             V128::from_raw(_mm_andnot_si128(sign, no.raw))
@@ -2639,7 +2661,7 @@ unsafe fn sse2_sign_mask<T: Lane>(raw: __m128i) -> __m128i {
 // SAFETY: All operations use SSE2 intrinsics.
 unsafe impl SimdConvert for Sse2 {
     #[inline(always)]
-    unsafe fn promote_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
+    fn promote_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
     where
         N::Wide: Lane,
     {
@@ -2681,7 +2703,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn demote_to<W: WideLane>(self, v: V128<W>) -> V128<W::Narrow>
+    fn demote_to<W: WideLane>(self, v: V128<W>) -> V128<W::Narrow>
     where
         W::Narrow: Lane,
     {
@@ -2743,7 +2765,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn convert_to_int<F: FloatLane>(self, v: V128<F>) -> V128<F::Int> {
+    fn convert_to_int<F: FloatLane>(self, v: V128<F>) -> V128<F::Int> {
         unsafe {
             let raw = if F::BYTES == 4 {
                 _mm_cvttps_epi32(_mm_castsi128_ps(v.raw))
@@ -2771,7 +2793,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn convert_to_float<F: FloatLane>(self, v: V128<F::Int>) -> V128<F> {
+    fn convert_to_float<F: FloatLane>(self, v: V128<F::Int>) -> V128<F> {
         unsafe {
             let raw = if F::BYTES == 4 {
                 _mm_castps_si128(_mm_cvtepi32_ps(v.raw))
@@ -2806,7 +2828,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn truncate_to<W: WideLane>(self, v: V128<W>) -> V128<W::Narrow>
+    fn truncate_to<W: WideLane>(self, v: V128<W>) -> V128<W::Narrow>
     where
         W::Narrow: Lane,
     {
@@ -2847,7 +2869,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn ordered_demote_2_to<W: WideLane>(
+    fn ordered_demote_2_to<W: WideLane>(
         self,
         lo: V128<W>,
         hi: V128<W>,
@@ -2921,7 +2943,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn nearest_int<F: FloatLane>(self, v: V128<F>) -> V128<F::Int> {
+    fn nearest_int<F: FloatLane>(self, v: V128<F>) -> V128<F::Int> {
         unsafe {
             let raw = if F::BYTES == 4 {
                 // _mm_cvtps_epi32 uses current rounding mode (default = nearest-even).
@@ -2962,7 +2984,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reorder_demote_2_to<W: WideLane>(
+    fn reorder_demote_2_to<W: WideLane>(
         self,
         a: V128<W>,
         b: V128<W>,
@@ -2972,42 +2994,42 @@ unsafe impl SimdConvert for Sse2 {
     {
         // SSE2: pack instructions already produce correct order within 128 bits
         // so reorder_demote_2_to is the same as ordered_demote_2_to
-        unsafe { self.ordered_demote_2_to(a, b) }
+        self.ordered_demote_2_to(a, b)
     }
 
     #[inline(always)]
-    unsafe fn demote_in_range_to<W: WideLane>(self, v: V128<W>) -> V128<W::Narrow>
+    fn demote_in_range_to<W: WideLane>(self, v: V128<W>) -> V128<W::Narrow>
     where
         W::Narrow: Lane,
     {
         // Same as demote_to but without clamping (assumes in-range)
-        unsafe { self.demote_to(v) }
+        self.demote_to(v)
     }
 
     #[inline(always)]
-    unsafe fn convert_in_range_to_int<F: FloatLane>(self, v: V128<F>) -> V128<F::Int> {
+    fn convert_in_range_to_int<F: FloatLane>(self, v: V128<F>) -> V128<F::Int> {
         // Same as convert_to_int (truncation toward zero), without overflow check
-        unsafe { self.convert_to_int(v) }
+        self.convert_to_int(v)
     }
 
     #[inline(always)]
-    unsafe fn promote_lower_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
+    fn promote_lower_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
     where
         N::Wide: Lane,
     {
         // For SSE2, half=full, so promote_lower_to is the same as promote_to
-        unsafe { self.promote_to(v) }
+        self.promote_to(v)
     }
 
     #[inline(always)]
-    unsafe fn promote_upper_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
+    fn promote_upper_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
     where
         N::Wide: Lane,
     {
         // For SSE2, "upper half" doesn't exist (half=full), so we extract the
         // upper portion of the lanes. E.g., for u8->u16 promotion, the upper 8 u8 lanes
         // get promoted. We shift right by half the lanes.
-        unsafe {
+        {
             let lanes = 16 / N::BYTES;
             let half_lanes = lanes / 2;
             // Shift the vector down by half_lanes to bring upper lanes to lower position
@@ -3017,7 +3039,7 @@ unsafe impl SimdConvert for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn ordered_truncate_2_to<W: WideLane>(
+    fn ordered_truncate_2_to<W: WideLane>(
         self,
         lo: V128<W>,
         hi: V128<W>,
@@ -3027,7 +3049,7 @@ unsafe impl SimdConvert for Sse2 {
     {
         // OrderedTruncate2To = ConcatEven of the narrow-reinterpreted vectors.
         // Even narrow lanes of a bitcast wide vector are the low (truncated) halves.
-        unsafe {
+        {
             let lo_n = self.bitcast::<W, W::Narrow>(lo);
             let hi_n = self.bitcast::<W, W::Narrow>(hi);
             self.concat_even(lo_n, hi_n)
@@ -3042,7 +3064,7 @@ unsafe impl SimdConvert for Sse2 {
 // SAFETY: All operations use SSE2 intrinsics.
 unsafe impl SimdShuffle for Sse2 {
     #[inline(always)]
-    unsafe fn reverse<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn reverse<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3069,7 +3091,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn broadcast_lane<T: Lane, const IDX: usize>(self, v: V128<T>) -> V128<T> {
+    fn broadcast_lane<T: Lane, const IDX: usize>(self, v: V128<T>) -> V128<T> {
         unsafe {
             match T::BYTES {
                 4 => {
@@ -3126,7 +3148,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm_unpacklo_epi8(a.raw, b.raw),
@@ -3140,7 +3162,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => _mm_unpackhi_epi8(a.raw, b.raw),
@@ -3154,18 +3176,18 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn zip_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn zip_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // zip_lower is the same as interleave_lower for SSE
-        unsafe { self.interleave_lower(a, b) }
+        self.interleave_lower(a, b)
     }
 
     #[inline(always)]
-    unsafe fn zip_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe { self.interleave_upper(a, b) }
+    fn zip_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+        self.interleave_upper(a, b)
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_bytes<T: Lane>(self, table: V128<T>, idx: V128<T>) -> V128<T> {
+    fn table_lookup_bytes<T: Lane>(self, table: V128<T>, idx: V128<T>) -> V128<T> {
         unsafe {
             // SSE2 doesn't have pshufb; emulate byte-level table lookup
             let mut tbl: Aligned<A16, [u8; 16]> = Aligned::new([0u8; 16]);
@@ -3186,7 +3208,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_lanes<T: Lane, I: IntegerLane>(
+    fn table_lookup_lanes<T: Lane, I: IntegerLane>(
         self,
         v: V128<T>,
         idx: V128<I>,
@@ -3211,7 +3233,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse2<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn reverse2<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3240,7 +3262,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse4<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn reverse4<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3275,7 +3297,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse8<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn reverse8<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             match T::BYTES {
                 1 => {
@@ -3304,7 +3326,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_upper_lower<T: Lane>(self, hi: V128<T>, lo: V128<T>) -> V128<T> {
+    fn concat_upper_lower<T: Lane>(self, hi: V128<T>, lo: V128<T>) -> V128<T> {
         // Upper 64 bits of hi, lower 64 bits of lo.
         // _mm_move_sd(a, b) returns [b[0], a[1]], i.e. lower 64 of b, upper 64 of a.
         // We want upper of hi, lower of lo => _mm_move_sd(hi_pd, lo_pd)
@@ -3316,7 +3338,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_lower_upper<T: Lane>(self, hi: V128<T>, lo: V128<T>) -> V128<T> {
+    fn concat_lower_upper<T: Lane>(self, hi: V128<T>, lo: V128<T>) -> V128<T> {
         // Lower 64 bits of hi, upper 64 bits of lo.
         // _mm_move_sd(a, b) returns [b[0], a[1]].
         // _mm_move_sd(lo_pd, hi_pd) = [hi_lower, lo_upper]. That's what we want.
@@ -3328,7 +3350,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_even<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn concat_even<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // Even-indexed lanes from a (lower half), even-indexed lanes from b (upper half).
         unsafe {
             match T::BYTES {
@@ -3374,7 +3396,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_odd<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn concat_odd<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // Odd-indexed lanes from a (lower half), odd-indexed lanes from b (upper half).
         unsafe {
             match T::BYTES {
@@ -3412,7 +3434,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn odd_even<T: Lane>(self, odd: V128<T>, even: V128<T>) -> V128<T> {
+    fn odd_even<T: Lane>(self, odd: V128<T>, even: V128<T>) -> V128<T> {
         // Take odd-indexed lanes from `odd`, even-indexed lanes from `even`.
         // Build a mask that is all-ones for odd lanes, all-zeros for even lanes.
         unsafe {
@@ -3461,7 +3483,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_up_lanes<T: Lane>(self, v: V128<T>, n: usize) -> V128<T> {
+    fn slide_up_lanes<T: Lane>(self, v: V128<T>, n: usize) -> V128<T> {
         // Shift lanes up (toward higher indices) = shift byte representation LEFT.
         unsafe {
             let byte_shift = n * T::BYTES;
@@ -3489,7 +3511,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_down_lanes<T: Lane>(self, v: V128<T>, n: usize) -> V128<T> {
+    fn slide_down_lanes<T: Lane>(self, v: V128<T>, n: usize) -> V128<T> {
         // Shift lanes down (toward lower indices) = shift byte representation RIGHT.
         unsafe {
             let byte_shift = n * T::BYTES;
@@ -3517,7 +3539,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn compress<T: Lane>(self, v: V128<T>, mask: M128<T>) -> V128<T> {
+    fn compress<T: Lane>(self, v: V128<T>, mask: M128<T>) -> V128<T> {
         unsafe {
             // 64-bit: only 2 lanes, handle directly.
             if T::BYTES == 8 {
@@ -3585,7 +3607,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn dup_even<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn dup_even<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3614,7 +3636,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn dup_odd<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn dup_odd<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let raw = match T::BYTES {
                 1 => {
@@ -3643,7 +3665,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_lower_lower<T: Lane>(
+    fn concat_lower_lower<T: Lane>(
         self,
         hi: V128<T>,
         lo: V128<T>,
@@ -3653,7 +3675,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn concat_upper_upper<T: Lane>(
+    fn concat_upper_upper<T: Lane>(
         self,
         hi: V128<T>,
         lo: V128<T>,
@@ -3663,7 +3685,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_1_up<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn slide_1_up<T: Lane>(self, v: V128<T>) -> V128<T> {
         // Shift lanes up by 1 = shift bytes left by T::BYTES.
         unsafe {
             let raw = match T::BYTES {
@@ -3678,7 +3700,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn slide_1_down<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn slide_1_down<T: Lane>(self, v: V128<T>) -> V128<T> {
         // Shift lanes down by 1 = shift bytes right by T::BYTES.
         unsafe {
             let raw = match T::BYTES {
@@ -3693,7 +3715,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn expand<T: Lane>(self, v: V128<T>, mask: M128<T>) -> V128<T> {
+    fn expand<T: Lane>(self, v: V128<T>, mask: M128<T>) -> V128<T> {
         // Inverse of compress: scatter low lanes to mask-true positions,
         // zero where mask is false.
         unsafe {
@@ -3724,7 +3746,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn combine_shift_right_bytes<T: Lane, const BYTES: usize>(
+    fn combine_shift_right_bytes<T: Lane, const BYTES: usize>(
         self,
         hi: V128<T>,
         lo: V128<T>,
@@ -3792,7 +3814,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn odd_even_blocks<T: Lane>(
+    fn odd_even_blocks<T: Lane>(
         self,
         _odd: V128<T>,
         even: V128<T>,
@@ -3802,24 +3824,24 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn reverse_blocks<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn reverse_blocks<T: Lane>(self, v: V128<T>) -> V128<T> {
         // SSE2: only 1 block, nothing to reverse.
         v
     }
 
     #[inline(always)]
-    unsafe fn compress_not<T: Lane>(self, v: V128<T>, mask: M128<T>) -> V128<T> {
-        unsafe { self.compress(v, self.not_mask(mask)) }
+    fn compress_not<T: Lane>(self, v: V128<T>, mask: M128<T>) -> V128<T> {
+        self.compress(v, self.not_mask(mask))
     }
 
     #[inline(always)]
-    unsafe fn compress_blocks_not(self, v: V128<u64>, _mask: M128<u64>) -> V128<u64> {
+    fn compress_blocks_not(self, v: V128<u64>, _mask: M128<u64>) -> V128<u64> {
         // Single 128-bit block, no-op
         v
     }
 
     #[inline(always)]
-    unsafe fn broadcast_block<T: Lane, const IDX: usize>(self, v: V128<T>) -> V128<T> {
+    fn broadcast_block<T: Lane, const IDX: usize>(self, v: V128<T>) -> V128<T> {
         // Single block, return as-is
         v
     }
@@ -3871,49 +3893,49 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn lower_half<T: Lane>(self, v: V128<T>) -> V128<T> {
+    fn lower_half<T: Lane>(self, v: V128<T>) -> V128<T> {
         // SSE2: half = full (identity)
         v
     }
 
     #[inline(always)]
-    unsafe fn upper_half<T: Lane>(self, _v: V128<T>) -> V128<T> {
+    fn upper_half<T: Lane>(self, _v: V128<T>) -> V128<T> {
         // SSE2: no upper half, return zero
         unsafe { V128::from_raw(_mm_setzero_si128()) }
     }
 
     #[inline(always)]
-    unsafe fn combine<T: Lane>(self, lo: V128<T>, _hi: V128<T>) -> V128<T> {
+    fn combine<T: Lane>(self, lo: V128<T>, _hi: V128<T>) -> V128<T> {
         // SSE2: half = full, return lo
         lo
     }
 
     #[inline(always)]
-    unsafe fn insert_block<T: Lane, const IDX: usize>(self, _v: V128<T>, blk: V128<T>) -> V128<T> {
+    fn insert_block<T: Lane, const IDX: usize>(self, _v: V128<T>, blk: V128<T>) -> V128<T> {
         // SSE2: single block, IDX must be 0
         blk
     }
 
     #[inline(always)]
-    unsafe fn extract_block<T: Lane, const IDX: usize>(self, v: V128<T>) -> V128<T> {
+    fn extract_block<T: Lane, const IDX: usize>(self, v: V128<T>) -> V128<T> {
         // SSE2: single block
         v
     }
 
     #[inline(always)]
-    unsafe fn interleave_whole_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_whole_lower<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // SSE2: single block, same as interleave_lower
-        unsafe { self.interleave_lower(a, b) }
+        self.interleave_lower(a, b)
     }
 
     #[inline(always)]
-    unsafe fn interleave_whole_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_whole_upper<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // SSE2: single block, same as interleave_upper
-        unsafe { self.interleave_upper(a, b) }
+        self.interleave_upper(a, b)
     }
 
     #[inline(always)]
-    unsafe fn interleave_even<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_even<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // Take even lanes and interleave: [a0, b0, a2, b2, ...]
         unsafe {
             let lanes = 16 / T::BYTES;
@@ -3941,7 +3963,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn interleave_odd<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn interleave_odd<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // Take odd lanes and interleave: [a1, b1, a3, b3, ...]
         unsafe {
             let lanes = 16 / T::BYTES;
@@ -3969,7 +3991,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn two_tables_lookup_lanes<T: Lane, I: IntegerLane>(
+    fn two_tables_lookup_lanes<T: Lane, I: IntegerLane>(
         self,
         a: V128<T>,
         b: V128<T>,
@@ -4008,7 +4030,7 @@ unsafe impl SimdShuffle for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn table_lookup_lanes_or0<T: Lane, I: IntegerLane>(
+    fn table_lookup_lanes_or0<T: Lane, I: IntegerLane>(
         self,
         v: V128<T>,
         idx: V128<I>,
@@ -4059,7 +4081,7 @@ unsafe impl SimdShuffle for Sse2 {
 // SAFETY: All operations use SSE2 intrinsics.
 unsafe impl SimdReduce for Sse2 {
     #[inline(always)]
-    unsafe fn sum_of_lanes<T: Lane>(self, v: V128<T>) -> T {
+    fn sum_of_lanes<T: Lane>(self, v: V128<T>) -> T {
         unsafe {
             // SIMD horizontal reduction via shuffle + add.
             // Each step adds the upper half to the lower half, halving the
@@ -4109,7 +4131,7 @@ unsafe impl SimdReduce for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn min_of_lanes<T: Lane>(self, v: V128<T>) -> T {
+    fn min_of_lanes<T: Lane>(self, v: V128<T>) -> T {
         unsafe {
             // Tree reduction: shuffle upper half down, min with lower, repeat.
             let mut r = v;
@@ -4152,7 +4174,7 @@ unsafe impl SimdReduce for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn max_of_lanes<T: Lane>(self, v: V128<T>) -> T {
+    fn max_of_lanes<T: Lane>(self, v: V128<T>) -> T {
         unsafe {
             let mut r = v;
             match T::BYTES {
@@ -4194,7 +4216,7 @@ unsafe impl SimdReduce for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_8_abs_diff(
+    fn sums_of_8_abs_diff(
         self,
         a: V128<u8>,
         b: V128<u8>,
@@ -4203,7 +4225,7 @@ unsafe impl SimdReduce for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_2<T: NarrowLane>(self, v: V128<T>) -> V128<T::Wide>
+    fn sums_of_2<T: NarrowLane>(self, v: V128<T>) -> V128<T::Wide>
     where
         T::Wide: Lane,
     {
@@ -4269,7 +4291,7 @@ unsafe impl SimdReduce for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn sums_of_4<T: NarrowLane>(
+    fn sums_of_4<T: NarrowLane>(
         self,
         v: V128<T>,
     ) -> V128<<T::Wide as NarrowLane>::Wide>
@@ -4277,7 +4299,7 @@ unsafe impl SimdReduce for Sse2 {
         T::Wide: NarrowLane + Lane,
         <T::Wide as NarrowLane>::Wide: Lane,
     {
-        unsafe {
+        {
             let mid = self.sums_of_2(v);
             self.sums_of_2(mid)
         }
@@ -4291,7 +4313,7 @@ unsafe impl SimdReduce for Sse2 {
 // SAFETY: All float ops use SSE2 intrinsics.
 unsafe impl SimdFloat for Sse2 {
     #[inline(always)]
-    unsafe fn sqrt<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn sqrt<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             let raw = if T::BYTES == 4 {
                 _mm_castps_si128(_mm_sqrt_ps(_mm_castsi128_ps(v.raw)))
@@ -4303,7 +4325,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn approx_reciprocal<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn approx_reciprocal<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 V128::from_raw(_mm_castps_si128(_mm_rcp_ps(_mm_castsi128_ps(v.raw))))
@@ -4316,7 +4338,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn approx_reciprocal_sqrt<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 V128::from_raw(_mm_castps_si128(_mm_rsqrt_ps(_mm_castsi128_ps(v.raw))))
@@ -4329,7 +4351,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn round<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn round<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 // SSE2 doesn't have _mm_round_ps; emulate using cvt
@@ -4355,7 +4377,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn trunc<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn trunc<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 // Truncate: convert to int and back
@@ -4385,7 +4407,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn ceil<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn ceil<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 // ceil via truncate + conditional +1
@@ -4423,7 +4445,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn floor<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn floor<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 // floor via truncate + conditional -1
@@ -4461,7 +4483,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_add<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn mul_add<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
         unsafe {
             // SSE2 doesn't have FMA; emulate as a*b + c
             if T::BYTES == 4 {
@@ -4475,7 +4497,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn neg_mul_add<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn neg_mul_add<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
         unsafe {
             // -(a*b) + c = c - a*b
             if T::BYTES == 4 {
@@ -4489,7 +4511,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn mul_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn mul_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
         unsafe {
             // a*b - c
             if T::BYTES == 4 {
@@ -4503,7 +4525,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn neg_mul_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
+    fn neg_mul_sub<T: FloatLane>(self, a: V128<T>, b: V128<T>, c: V128<T>) -> V128<T> {
         unsafe {
             // -(a*b) - c
             if T::BYTES == 4 {
@@ -4525,7 +4547,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn copy_sign<T: FloatLane>(self, mag: V128<T>, sign: V128<T>) -> V128<T> {
+    fn copy_sign<T: FloatLane>(self, mag: V128<T>, sign: V128<T>) -> V128<T> {
         unsafe {
             if T::BYTES == 4 {
                 let sign_mask = _mm_set1_epi32(0x8000_0000u32 as i32);
@@ -4545,7 +4567,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn is_nan<T: FloatLane>(self, v: V128<T>) -> M128<T> {
+    fn is_nan<T: FloatLane>(self, v: V128<T>) -> M128<T> {
         unsafe {
             // NaN: unordered compare with itself
             let raw = if T::BYTES == 4 {
@@ -4560,7 +4582,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn is_inf<T: FloatLane>(self, v: V128<T>) -> M128<T> {
+    fn is_inf<T: FloatLane>(self, v: V128<T>) -> M128<T> {
         unsafe {
             // Inf: abs(v) == max_finite + 1 bit... or compare to inf constant
             if T::BYTES == 4 {
@@ -4587,7 +4609,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn zero_if_negative<T: FloatLane>(self, v: V128<T>) -> V128<T> {
+    fn zero_if_negative<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         // AndNot(BroadcastSignBit(v), v): zero lanes where sign bit is set.
         unsafe {
             let raw = if T::BYTES == 4 {
@@ -4604,7 +4626,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn is_finite<T: FloatLane>(self, v: V128<T>) -> M128<T> {
+    fn is_finite<T: FloatLane>(self, v: V128<T>) -> M128<T> {
         unsafe {
             if T::BYTES == 4 {
                 // Exponent field < 0xFF: shift away sign+mantissa, compare < 0xFF
@@ -4646,7 +4668,7 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn add_sub<T: FloatLane>(
+    fn add_sub<T: FloatLane>(
         self,
         a: V128<T>,
         b: V128<T>,
@@ -4675,9 +4697,9 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn min_number<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn min_number<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // IfThenElse(IsNaN(a), b, Min(a, b))
-        unsafe {
+        {
             let nan_a = self.is_nan(a);
             let min_ab = self.min(a, b);
             self.if_then_else(nan_a, b, min_ab)
@@ -4685,9 +4707,9 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn max_number<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+    fn max_number<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         // IfThenElse(IsNaN(a), b, Max(a, b))
-        unsafe {
+        {
             let nan_a = self.is_nan(a);
             let max_ab = self.max(a, b);
             self.if_then_else(nan_a, b, max_ab)
@@ -4695,8 +4717,8 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn min_magnitude<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe {
+    fn min_magnitude<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+        {
             let abs_a = self.abs(a);
             let abs_b = self.abs(b);
             let abs_eq = self.eq(abs_a, abs_b);
@@ -4709,8 +4731,8 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn max_magnitude<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
-        unsafe {
+    fn max_magnitude<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
+        {
             let abs_a = self.abs(a);
             let abs_b = self.abs(b);
             let abs_eq = self.eq(abs_a, abs_b);
@@ -4723,8 +4745,8 @@ unsafe impl SimdFloat for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn is_either_nan<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
-        unsafe { self.or_mask(self.is_nan(a), self.is_nan(b)) }
+    fn is_either_nan<T: FloatLane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
+        self.or_mask(self.is_nan(a), self.is_nan(b))
     }
 }
 
@@ -4789,7 +4811,7 @@ fn read_lane_bits(arr: &[u8; 16], offset: usize, bytes: usize) -> u64 {
 // When hardware support is unavailable, the software fallback is used.
 unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
-    unsafe fn aes_round(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
+    fn aes_round(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aesenc_si128(state.raw, round_key.raw))
@@ -4805,7 +4827,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_last_round(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
+    fn aes_last_round(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aesenclast_si128(state.raw, round_key.raw))
@@ -4821,7 +4843,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_round_inv(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
+    fn aes_round_inv(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aesdec_si128(state.raw, round_key.raw))
@@ -4837,7 +4859,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_last_round_inv(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
+    fn aes_last_round_inv(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aesdeclast_si128(state.raw, round_key.raw))
@@ -4853,7 +4875,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn cl_mul_lower(self, a: V128<u64>, b: V128<u64>) -> V128<u64> {
+    fn cl_mul_lower(self, a: V128<u64>, b: V128<u64>) -> V128<u64> {
         unsafe {
             if is_x86_feature_detected!("pclmulqdq") {
                 V128::from_raw(_mm_clmulepi64_si128(a.raw, b.raw, 0x00))
@@ -4870,7 +4892,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn cl_mul_upper(self, a: V128<u64>, b: V128<u64>) -> V128<u64> {
+    fn cl_mul_upper(self, a: V128<u64>, b: V128<u64>) -> V128<u64> {
         unsafe {
             if is_x86_feature_detected!("pclmulqdq") {
                 V128::from_raw(_mm_clmulepi64_si128(a.raw, b.raw, 0x11))
@@ -4887,7 +4909,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_key_gen_assist<const RCON: i32>(self, v: V128<u8>) -> V128<u8> {
+    fn aes_key_gen_assist<const RCON: i32>(self, v: V128<u8>) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aeskeygenassist_si128(v.raw, RCON))
@@ -4901,7 +4923,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     }
 
     #[inline(always)]
-    unsafe fn aes_inv_mix_columns(self, v: V128<u8>) -> V128<u8> {
+    fn aes_inv_mix_columns(self, v: V128<u8>) -> V128<u8> {
         unsafe {
             if is_x86_feature_detected!("aes") {
                 V128::from_raw(_mm_aesimc_si128(v.raw))
@@ -4922,6 +4944,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
 #[cfg(test)]
 #[cfg(target_arch = "x86_64")]
 mod tests {
+    #![allow(unused_unsafe)]
     use super::*;
 
     fn has_sse2() -> bool {
@@ -4933,7 +4956,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let a = s.splat::<i32>(10);
             let b = s.splat::<i32>(32);
@@ -4950,7 +4973,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let a = s.splat::<f32>(1.5);
             let b = s.splat::<f32>(2.5);
@@ -4965,7 +4988,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let data: [i32; 4] = [1, 2, 3, 4];
             let v: V128<i32> = s.load_u(data.as_ptr());
@@ -4985,7 +5008,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let a = s.splat::<i32>(5);
             let b = s.splat::<i32>(10);
@@ -5000,7 +5023,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let a = s.splat::<u32>(0xFF00FF00);
             let b = s.splat::<u32>(0x00FF00FF);
@@ -5017,7 +5040,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let data: [i32; 4] = [1, 2, 3, 4];
             let v: V128<i32> = s.load_u(data.as_ptr());
@@ -5031,7 +5054,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2;
+        let s = Sse2::new();
         unsafe {
             let v = s.splat::<f32>(4.0);
             let sq: V128<f32> = s.sqrt(v);

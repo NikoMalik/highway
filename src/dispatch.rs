@@ -385,21 +385,21 @@ macro_rules! simd_fn {
 #[target_feature(enable = "sse2")]
 #[inline(never)]
 unsafe fn dispatch_sse2<K: WithSimd>(kernel: K) -> K::Output {
-    kernel.with_simd(crate::backend::sse2::Sse2)
+    kernel.with_simd(crate::backend::sse2::Sse2::new())
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma")]
 #[inline(never)]
 unsafe fn dispatch_avx2<K: WithSimd>(kernel: K) -> K::Output {
-    kernel.with_simd(crate::backend::avx2::Avx2)
+    kernel.with_simd(crate::backend::avx2::Avx2::new())
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f,avx512bw,avx512cd,avx512dq,avx512vl")]
 #[inline(never)]
 unsafe fn dispatch_avx512<K: WithSimd>(kernel: K) -> K::Output {
-    kernel.with_simd(crate::backend::avx512::Avx512)
+    kernel.with_simd(crate::backend::avx512::Avx512::new())
 }
 
 // ---------------------------------------------------------------------------

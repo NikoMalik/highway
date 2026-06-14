@@ -32,25 +32,20 @@ impl WithSimd for SumKernel<'_> {
 
     fn with_simd<S: SimdOps>(self, s: S) -> f32 {
         let lanes = s.lanes::<f32>();
-        let mut i = 0;
-        let mut acc = unsafe { s.zero::<f32>() };
+        let mut acc = s.zero::<f32>();
 
-        // Vectorized loop
-        while i + lanes <= self.data.len() {
-            unsafe {
-                let v = s.load_u(self.data.as_ptr().add(i));
-                acc = s.add(acc, v);
-            }
-            i += lanes;
+        // Vectorized loop — no `unsafe`: value ops are safe, and `load_slice`
+        // is a safe, bounds-checked load.
+        let mut chunks = self.data.chunks_exact(lanes);
+        for chunk in &mut chunks {
+            let v = s.load_slice(chunk);
+            acc = s.add(acc, v);
         }
 
-        // Horizontal reduction
-        let mut total = unsafe { s.sum_of_lanes(acc) };
-
-        // Scalar tail
-        while i < self.data.len() {
-            total += self.data[i];
-            i += 1;
+        // Horizontal reduction + scalar tail
+        let mut total = s.sum_of_lanes(acc);
+        for &x in chunks.remainder() {
+            total += x;
         }
         total
     }
@@ -73,20 +68,18 @@ let ptr = data.as_ptr();
 let len = data.len();
 
 let sum: f32 = simd_fn!([ptr: *const f32, len: usize] |s| -> f32 {
+    // `simd_fn!` captures can't hold references (no lifetimes), so we capture a
+    // raw pointer + len. Rebuild a slice once, then everything is safe.
+    let data = unsafe { core::slice::from_raw_parts(ptr, len) };
     let lanes = s.lanes::<f32>();
-    let mut acc = unsafe { s.zero::<f32>() };
-    let mut i = 0;
-    while i + lanes <= len {
-        unsafe {
-            let v = s.load_u(ptr.add(i));
-            acc = s.add(acc, v);
-        }
-        i += lanes;
+    let mut acc = s.zero::<f32>();
+    let mut chunks = data.chunks_exact(lanes);
+    for chunk in &mut chunks {
+        acc = s.add(acc, s.load_slice(chunk));   // safe
     }
-    let mut total = unsafe { s.sum_of_lanes(acc) };
-    while i < len {
-        total += unsafe { *ptr.add(i) };
-        i += 1;
+    let mut total = s.sum_of_lanes(acc);          // safe
+    for &x in chunks.remainder() {
+        total += x;
     }
     total
 });
@@ -119,22 +112,16 @@ impl AudioBuffer {
         let ptr = self.samples.as_ptr();
         let len = self.samples.len();
         simd_fn!([ptr: *const f32, len: usize] |s| -> f32 {
+            let data = unsafe { core::slice::from_raw_parts(ptr, len) };
             let lanes = s.lanes::<f32>();
-            let mut best = unsafe { s.splat(0.0f32) };
-            let mut i = 0;
-            while i + lanes <= len {
-                unsafe {
-                    let v = s.load_u(ptr.add(i));
-                    let a = s.abs(v);
-                    best = s.max(best, a);
-                }
-                i += lanes;
+            let mut best = s.splat(0.0f32);
+            let mut chunks = data.chunks_exact(lanes);
+            for chunk in &mut chunks {
+                best = s.max(best, s.abs(s.load_slice(chunk)));
             }
-            let mut peak = unsafe { s.max_of_lanes(best) };
-            while i < len {
-                let a = unsafe { *ptr.add(i) }.abs();
-                if a > peak { peak = a; }
-                i += 1;
+            let mut peak = s.max_of_lanes(best);
+            for &x in chunks.remainder() {
+                if x.abs() > peak { peak = x.abs(); }
             }
             peak
         })
@@ -144,22 +131,14 @@ impl AudioBuffer {
         let ptr = self.samples.as_ptr();
         let len = self.samples.len();
         simd_fn!([ptr: *const f32, len: usize] |s| -> f32 {
+            let data = unsafe { core::slice::from_raw_parts(ptr, len) };
             let lanes = s.lanes::<f32>();
-            let mut acc = unsafe { s.zero::<f32>() };
-            let mut i = 0;
-            while i + lanes <= len {
-                unsafe {
-                    let v = s.load_u(ptr.add(i));
-                    acc = s.add(acc, v);
-                }
-                i += lanes;
+            let mut acc = s.zero::<f32>();
+            let mut chunks = data.chunks_exact(lanes);
+            for chunk in &mut chunks {
+                acc = s.add(acc, s.load_slice(chunk));
             }
-            let mut total = unsafe { s.sum_of_lanes(acc) };
-            while i < len {
-                total += unsafe { *ptr.add(i) };
-                i += 1;
-            }
-            total
+            chunks.remainder().iter().fold(s.sum_of_lanes(acc), |t, &x| t + x)
         })
     }
 
@@ -167,25 +146,21 @@ impl AudioBuffer {
         let ptr = self.samples.as_ptr();
         let len = self.samples.len();
         simd_fn!([ptr: *const f32, len: usize, needle: f32] |s| -> Option<usize> {
+            let data = unsafe { core::slice::from_raw_parts(ptr, len) };
             let lanes = s.lanes::<f32>();
-            let needle_v = unsafe { s.splat(needle) };
+            let needle_v = s.splat(needle);
             let mut i = 0;
-            while i + lanes <= len {
-                unsafe {
-                    let v = s.load_u(ptr.add(i));
-                    let mask = s.eq(v, needle_v);
-                    if let Some(idx) = s.find_first_true(mask) {
-                        return Some(i + idx);
-                    }
+            let mut chunks = data.chunks_exact(lanes);
+            for chunk in &mut chunks {
+                let mask = s.eq(s.load_slice(chunk), needle_v);
+                if let Some(idx) = s.find_first_true(mask) {
+                    return Some(i + idx);
                 }
                 i += lanes;
             }
             // Scalar tail
-            while i < len {
-                if unsafe { *ptr.add(i) } == needle {
-                    return Some(i);
-                }
-                i += 1;
+            for (j, &x) in chunks.remainder().iter().enumerate() {
+                if x == needle { return Some(i + j); }
             }
             None
         })
@@ -236,13 +211,24 @@ assert!(name.contains("Scalar"));
 
 Operations are grouped into sub-traits on the `SimdOps` supertrait.
 
-All SIMD operations are `unsafe fn` because they use platform intrinsics internally.
+**Safety model:** value operations (arithmetic, compare, shuffle, mask, convert,
+float, etc.) are **safe `fn`** — the `S` target token is a proof that the CPU
+features are enabled (it can only be obtained through `dispatch`/`dispatch_to`
+after a runtime feature check, and cannot be constructed from safe code). The
+only `unsafe fn`s are those that take **raw pointers** (`load`/`store`/gather/
+scatter/interleaved memory) or a **runtime lane index** (`extract_lane`/
+`insert_lane`), where the caller must uphold a precondition the token can't.
+Those memory ops have safe, bounds-checked slice wrappers (`load_slice`,
+`store_slice`, `load_aligned_slice`, `store_aligned_slice`), so typical kernels
+need no `unsafe` at all.
 
 **SimdCore** (8) -- vector construction and element access:
-`zero`, `splat`, `undefined`, `bitcast`, `extract_lane`, `insert_lane`, `get_lane`, `iota`
+`zero`, `splat`, `undefined`, `bitcast`, `extract_lane`*, `insert_lane`*, `get_lane`, `iota`
 
-**SimdMemory** (17) -- load, store, gather/scatter, interleaved memory access:
-`load`, `load_u`, `store`, `store_u`, `stream`, `load_dup128`, `masked_load`, `blended_store`, `gather_index`, `scatter_index`, `load_interleaved_2`, `load_interleaved_3`, `load_interleaved_4`, `store_interleaved_2`, `store_interleaved_3`, `store_interleaved_4`, `load_expand`
+**SimdMemory** (21) -- load, store, gather/scatter, interleaved memory access:
+`load`*, `load_u`*, `store`*, `store_u`*, `stream`*, `load_dup128`*, `masked_load`*, `blended_store`*, `gather_index`*, `scatter_index`*, `load_interleaved_2`*, `load_interleaved_3`*, `load_interleaved_4`*, `store_interleaved_2`*, `store_interleaved_3`*, `store_interleaved_4`*, `load_expand`*, `load_slice`, `store_slice`, `load_aligned_slice`, `store_aligned_slice`
+
+<sub>`*` = `unsafe fn` (raw pointer / runtime index). All other operations are safe.</sub>
 
 **SimdArith** (27) -- arithmetic, saturation, widening multiply, masked variants:
 `add`, `sub`, `mul`, `div`, `saturated_add`, `saturated_sub`, `saturated_neg`, `saturated_abs`, `abs`, `neg`, `min`, `max`, `mul_high`, `average_round`, `abs_diff`, `clamp`, `mul_even`, `mul_odd`, `widen_mul_pairwise_add_i16`, `sat_widen_mul_pairwise_add`, `mul_fixed_point_15`, `reorder_widen_mul_accumulate`, `masked_min_or`, `masked_max_or`, `masked_add_or`, `masked_sub_or`, `masked_mul_or`
@@ -260,7 +246,7 @@ All SIMD operations are `unsafe fn` because they use platform intrinsics interna
 `promote_to`, `promote_lower_to`, `promote_upper_to`, `demote_to`, `demote_in_range_to`, `convert_to_int`, `convert_in_range_to_int`, `convert_to_float`, `truncate_to`, `ordered_demote_2_to`, `reorder_demote_2_to`, `ordered_truncate_2_to`, `nearest_int`
 
 **SimdShuffle** (47) -- lane rearrangement, compress, half-vector & block ops:
-`reverse`, `broadcast_lane`, `interleave_lower`, `interleave_upper`, `interleave_whole_lower`, `interleave_whole_upper`, `interleave_even`, `interleave_odd`, `zip_lower`, `zip_upper`, `table_lookup_bytes`, `table_lookup_lanes`, `table_lookup_lanes_or0`, `two_tables_lookup_lanes`, `reverse2`, `reverse4`, `reverse8`, `concat_upper_lower`, `concat_lower_upper`, `concat_lower_lower`, `concat_upper_upper`, `concat_even`, `concat_odd`, `odd_even`, `odd_even_blocks`, `reverse_blocks`, `slide_up_lanes`, `slide_down_lanes`, `slide_1_up`, `slide_1_down`, `dup_even`, `dup_odd`, `combine_shift_right_bytes`, `lower_half`, `upper_half`, `combine`, `insert_block`, `extract_block`, `broadcast_block`, `compress`, `compress_store`, `compress_not`, `compress_blocks_not`, `compress_blended_store`, `compress_bits`, `compress_bits_store`, `expand`
+`reverse`, `broadcast_lane`, `interleave_lower`, `interleave_upper`, `interleave_whole_lower`, `interleave_whole_upper`, `interleave_even`, `interleave_odd`, `zip_lower`, `zip_upper`, `table_lookup_bytes`, `table_lookup_lanes`, `table_lookup_lanes_or0`, `two_tables_lookup_lanes`, `reverse2`, `reverse4`, `reverse8`, `concat_upper_lower`, `concat_lower_upper`, `concat_lower_lower`, `concat_upper_upper`, `concat_even`, `concat_odd`, `odd_even`, `odd_even_blocks`, `reverse_blocks`, `slide_up_lanes`, `slide_down_lanes`, `slide_1_up`, `slide_1_down`, `dup_even`, `dup_odd`, `combine_shift_right_bytes`, `lower_half`, `upper_half`, `combine`, `insert_block`, `extract_block`, `broadcast_block`, `compress`, `compress_store`*, `compress_not`, `compress_blocks_not`, `compress_blended_store`*, `compress_bits`*, `compress_bits_store`*, `expand`
 
 **SimdReduce** (6) -- horizontal reductions:
 `sum_of_lanes`, `min_of_lanes`, `max_of_lanes`, `sums_of_8_abs_diff`, `sums_of_2`, `sums_of_4`
@@ -329,33 +315,41 @@ impl WithSimd for AlignedKernel<'_> {
     type Output = ();
     fn with_simd<S: SimdOps>(self, s: S) -> () {
         let lanes = s.lanes::<f32>();
-        let mut i = 0;
-        while i + lanes <= self.input.len() {
-            unsafe {
-                // Aligned load -- requires pointer aligned to vector width.
-                // AlignedVec guarantees 128-byte alignment, which exceeds
-                // the requirement of any target (max 64 bytes for AVX-512).
-                let v = s.load(self.input.as_ptr().add(i));
-                let doubled = s.add(v, v);
-                s.store(doubled, self.output.as_mut_ptr().add(i));
-            }
-            i += lanes;
+        // `load_aligned_slice`/`store_aligned_slice` are safe: they check both
+        // length and alignment, then use the faster aligned intrinsics.
+        // AlignedVec guarantees 128-byte alignment, exceeding any target's need.
+        let chunks = self.input.chunks_exact(lanes);
+        let out_chunks = self.output.chunks_exact_mut(lanes);
+        for (chunk, out) in chunks.zip(out_chunks) {
+            let v = s.load_aligned_slice(chunk);
+            s.store_aligned_slice(s.add(v, v), out);
         }
         // scalar tail
-        while i < self.input.len() {
+        let done = self.input.len() / lanes * lanes;
+        for i in done..self.input.len() {
             self.output[i] = self.input[i] * 2.0;
-            i += 1;
         }
     }
 }
 ```
 
-**When to use `load` vs `load_u`:**
+**Safe slice helpers vs raw-pointer ops:**
 
-- `load` (aligned) -- pointer must be aligned to the vector width (16/32/64 bytes). Use with `AlignedVec` or data you know is aligned. Faster on some architectures.
-- `load_u` (unaligned) -- works with any pointer. Use with standard `Vec`, slices from arbitrary sources, or when alignment is unknown.
+| Safe (bounds-checked) | Raw-pointer (`unsafe`) | Notes |
+|---|---|---|
+| `load_slice(&[T])` | `load_u(*const T)` | unaligned load of one vector |
+| `store_slice(v, &mut [T])` | `store_u(v, *mut T)` | unaligned store |
+| `load_aligned_slice(&[T])` | `load(*const T)` | aligned load; also checks alignment to `VECTOR_BYTES` |
+| `store_aligned_slice(v, &mut [T])` | `store(v, *mut T)` | aligned store |
 
-Same applies to `store` vs `store_u`.
+Prefer the slice helpers — they need no `unsafe`. Reach for the raw-pointer
+forms only in hot loops where you want to elide the per-call bounds/alignment
+check (e.g. after hoisting it out of the loop yourself).
+
+- Aligned variants require the slice start aligned to the vector width
+  (16/32/64 bytes); use `AlignedVec`. They panic on misalignment rather than
+  invoking UB.
+- Unaligned variants work with any slice (`Vec`, sub-slices, etc.).
 
 ### Supported Lane Types
 

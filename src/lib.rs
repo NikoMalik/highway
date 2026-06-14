@@ -18,6 +18,46 @@
 //! The public API (`WithSimd`, `dispatch()`, `Simd` trait, operation traits) is
 //! platform-independent. On non-x86_64 platforms, dispatch falls back to the
 //! scalar backend. Architecture-specific backends are conditionally compiled.
+//!
+//! # Safety guarantees
+//!
+//! Backend target tokens (`Sse2`/`Avx2`/`Avx512`) cannot be constructed from
+//! safe code — possessing one is a proof that the CPU features are available.
+//! This is what allows the value operations to be safe `fn`.
+//!
+//! Using the bare type name as a value fails (the constructor is private):
+//!
+//! ```compile_fail
+//! let _token = highway::Avx2;
+//! ```
+//!
+//! Constructing it directly fails (private field):
+//!
+//! ```compile_fail
+//! let _token = highway::Sse2(());
+//! ```
+//!
+//! The escape hatch `new_unchecked` exists for advanced use, but is `unsafe`:
+//!
+//! ```compile_fail
+//! let _token = highway::Avx512::new_unchecked();
+//! ```
+//!
+//! Obtaining a token the correct way (through dispatch, after a runtime feature
+//! check) lets you call value ops with no `unsafe`:
+//!
+//! ```
+//! use highway::{dispatch, WithSimd, SimdOps};
+//! struct K;
+//! impl WithSimd for K {
+//!     type Output = i32;
+//!     fn with_simd<S: SimdOps>(self, s: S) -> i32 {
+//!         let v = s.splat::<i32>(21);   // safe
+//!         s.get_lane(s.add(v, v))       // safe
+//!     }
+//! }
+//! assert_eq!(dispatch(K), 42);
+//! ```
 
 /// Concrete SIMD backend implementations.
 pub mod backend;
