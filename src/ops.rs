@@ -1525,6 +1525,13 @@ pub unsafe trait SimdFloat: Simd {
 /// Callers must ensure the target's CPU features are enabled, including
 /// the appropriate AES/PCLMUL feature flags.
 pub unsafe trait SimdCrypto: Simd {
+    /// `true` when this token runs carry-less multiply in hardware, `false`
+    /// when it falls back to software.
+    const HAS_CLMUL: bool;
+
+    /// `true` when this token runs AES rounds in hardware.
+    const HAS_AES: bool;
+
     /// One AES encryption round: `aesenc(state, round_key)`.
     fn aes_round(
         self,

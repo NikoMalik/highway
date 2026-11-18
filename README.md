@@ -15,6 +15,70 @@ Portable SIMD operations with runtime CPU detection and dispatch to the best ava
 
 Target selection is automatic at runtime via `dispatch()`. No compile-time feature flags needed -- all backends are compiled in and the best one is selected on first call.
 
+### tiers: detect once,no checks per operation
+
+the cpu is checked once at startup (`Cpu::detect()`),the result is a `Tier`. every tier is one token type plus one `#[target_feature]` trampoline,optional extensions live in the token type itself (`Sse2<EXT>`,`Avx2<EXT>`,`Avx512<EXT>`),so operations like `mul_fixed_point_15`,`population_count`,`compress`,`cl_mul_lower` test `EXT` at compile time and there is no `is_x86_feature_detected!` inside any operation
+
+| tier | token | extensions in the token |
+|------|-------|-------------------------|
+| `Scalar` | `Scalar` | - |
+| `Sse2` | `Sse2<0>` | - |
+| `Sse2Crypto` | `Sse2<..>` | ssse3,sse4.1,aes,pclmul |
+| `Avx2` | `Avx2<..>` | ssse3,sse4.1 |
+| `Avx2Crypto` | `Avx2<..>` | ssse3,sse4.1,aes,pclmul |
+| `Avx512` | `Avx512<..>` | ssse3,sse4.1 |
+| `Avx512Crypto` | `Avx512<..>` | ssse3,sse4.1,aes,pclmul |
+| `Avx512Ext` | `Avx512<..>` | ssse3,sse4.1,aes,pclmul,vbmi,vbmi2,bitalg,vpopcntdq |
+
+flags are in `highway::features` (`SSSE3`,`SSE41`,`AES`,`PCLMUL`,`VBMI`,`VBMI2`,`BITALG`,`VPOPCNTDQ`). a token without a flag runs the software path of that op,`Sse2::new_unchecked()` gives `Sse2<0>`
+
+```rust
+use highway::{Cpu, Tier, WithSimd, SimdOps};
+
+struct Lanes;
+impl WithSimd for Lanes {
+    type Output = usize;
+    fn with_simd<S: SimdOps>(self, s: S) -> usize {
+        s.lanes::<u8>()
+    }
+}
+
+let cpu = Cpu::detect();                       // once at startup,keep it around
+let n = cpu.dispatch(Lanes);                   // straight to the tier trampoline
+let lanes = cpu.resolve::<Lanes>();            // or pick the entry point once
+assert_eq!(lanes.call(Lanes), n);              // one indirect call,no tier match
+let sse = cpu.capped(Tier::Sse2Crypto);        // best tier at or below a cap
+assert!(sse.dispatch(Lanes) <= n);
+```
+
+`Cpu` is only made by `detect()` or `capped()`,so holding one proves the tier runs on this machine. `dispatch()` and `dispatch_to()` still work,they use a `Cpu` detected on the first call and cached
+
+kernels that need aes or carry-less multiply implement `WithSimdCrypto` and go through `cpu.dispatch_crypto()`,or `cpu.dispatch_crypto_128()` to get a 128-bit `Sse2` token compiled with the tier's features (an avx-512 tier still gets evex and `vpternlogq` on 128-bit data). `S::HAS_CLMUL` and `S::HAS_AES` are compile-time constants:
+
+```rust
+use highway::{Cpu, SimdOps, WithSimdCrypto};
+use highway::ops::SimdCrypto;
+
+struct ClMul { a: u64, b: u64 }
+
+impl WithSimdCrypto for ClMul {
+    type Output = u64;
+    fn with_simd<S: SimdOps + SimdCrypto>(self, s: S) -> u64 {
+        let product = s.cl_mul_lower(s.load_slice(&[self.a, 0]), s.load_slice(&[self.b, 0]));
+        let mut lanes = [0u64; 2];
+        s.store_slice(product, &mut lanes);
+        lanes[0]
+    }
+    fn with_scalar(self) -> u64 {
+        (0..64).filter(|i| (self.b >> i) & 1 != 0).fold(0, |acc, i| acc ^ (self.a << i))
+    }
+}
+
+let cpu = Cpu::detect();
+let entry = cpu.resolve_crypto_128::<ClMul>();
+assert_eq!(entry.call(ClMul { a: 3, b: 3 }), 5);
+```
+
 
 ### Writing a SIMD Kernel
 
@@ -93,6 +157,7 @@ Two forms:
 |--------|------------|
 | `simd_fn!(\|s\| -> T { ... })` | No external data needed |
 | `simd_fn!([a: A, b: B] \|s\| -> T { ... })` | Capture local variables with types |
+| `simd_fn!(cpu => [a: A] \|s\| -> T { ... })` | same,but on a `Cpu` you detected at startup,no cache lookup |
 
 Captures require explicit types because `macro_rules!` generates a struct internally and Rust struct fields need types. The macro expands to a `struct` + `impl WithSimd` + `dispatch()` call — zero overhead, full monomorphization for each backend.
 
@@ -256,6 +321,8 @@ need no `unsafe` at all.
 
 **SimdCrypto** (8) -- AES and carry-less multiply (separate trait, not part of `SimdOps`):
 `aes_round`, `aes_last_round`, `aes_round_inv`, `aes_last_round_inv`, `aes_key_gen_assist`, `aes_inv_mix_columns`, `cl_mul_lower`, `cl_mul_upper`
+
+kernels get it through `WithSimdCrypto` and `Cpu::dispatch_crypto` / `Cpu::dispatch_crypto_128`,constants `HAS_CLMUL` / `HAS_AES` say if the token runs them in hardware
 
 ### Not Yet Ported from C++ Highway
 
@@ -444,7 +511,7 @@ assert_eq!(width, 2); // wide
 | `hn::MulAdd(a, b, c)` | `s.mul_add(a, b, c)` | FMA: `a * b + c` |
 | `HWY_ALIGN T arr[]` | `AlignedVec<T>` / `aligned_vec_from_slice()` | 128-byte alignment by default |
 | Template `D d` | Trait bound `S: SimdOps` | `s: S` is the SIMD target value |
-| `HWY_DYNAMIC_DISPATCH(func)` | `dispatch(kernel)` | Calls `kernel.with_simd(best_target)` |
+| `HWY_DYNAMIC_DISPATCH(func)` | `dispatch(kernel)` / `cpu.resolve::<K>().call(kernel)` | detect once with `Cpu::detect()`,then no checks per call |
 | `intptr_t` (-1 = not found) | `Option<usize>` | Rust idiom for optional values |
 
 ### Key Differences

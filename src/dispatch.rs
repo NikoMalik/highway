@@ -3,20 +3,18 @@
 //! Detects the best available SIMD target at runtime and dispatches
 //! user-provided kernels through `#[target_feature]`-annotated trampolines.
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU8, Ordering};
 
 use crate::backend::scalar::Scalar;
-use crate::ops::SimdOps;
+use crate::ops::{SimdCrypto, SimdOps};
 
 // ---------------------------------------------------------------------------
-// Target identifiers (stored in the atomic cache)
+// Target identifiers
 // ---------------------------------------------------------------------------
 
-/// Numeric identifiers for each detected target, stored in [`CHOSEN`].
+/// The backend a [`Tier`] runs on.
 ///
-/// The dispatch system caches the detected target as a `u64` in an atomic.
-/// This enum provides a typed view of those values.
-/// Value 0 is reserved for "not yet detected".
+/// Value 0 means "not yet detected".
 #[repr(u64)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetId {
@@ -35,39 +33,21 @@ pub enum TargetId {
 }
 
 impl TargetId {
-    fn from_u64(v: u64) -> Self {
-        match v {
-            1 => Self::Scalar,
-            2 => Self::Sse2,
-            3 => Self::Avx2,
-            4 => Self::Avx512,
-            5 => Self::Neon,
-            _ => Self::Uninitialized,
-        }
-    }
-
     /// Returns `true` if this target is a SIMD-accelerated target (not scalar).
     pub fn is_accelerated(self) -> bool {
         !matches!(self, Self::Scalar | Self::Uninitialized)
     }
 }
 
-/// Cached best target. 0 = not yet detected.
-static CHOSEN: AtomicU64 = AtomicU64::new(0);
+/// Cached [`Tier`] of this CPU as `u8`, 0 = not yet detected.
+static CHOSEN: AtomicU8 = AtomicU8::new(0);
 
 /// Detect the best available SIMD target for the current CPU.
 ///
-/// Results are cached in an atomic for subsequent calls.
-/// This function is safe to call from any thread.
+/// The full [`Cpu`] detection runs once and is cached; later calls are one
+/// relaxed atomic load.
 pub fn detect_best_target() -> TargetId {
-    let cached = CHOSEN.load(Ordering::Relaxed);
-    if cached != 0 {
-        return TargetId::from_u64(cached);
-    }
-
-    let best = detect_impl();
-    CHOSEN.store(best as u64, Ordering::Relaxed);
-    best
+    Cpu::cached().target()
 }
 
 /// Reset the cached target detection (useful for testing).
@@ -105,29 +85,45 @@ fn has_sse2() -> bool {
 }
 
 #[cfg(target_arch = "x86_64")]
-fn detect_impl() -> TargetId {
-    if has_avx512() {
-        return TargetId::Avx512;
+fn detect_tier() -> Tier {
+    use crate::features::{
+        AES, BITALG, PCLMUL, SSE41, SSSE3, VBMI, VBMI2, VPOPCNTDQ,
+    };
+    let mut ext = 0;
+    for (on, flag) in [
+        (is_x86_feature_detected!("ssse3"), SSSE3),
+        (is_x86_feature_detected!("sse4.1"), SSE41),
+        (is_x86_feature_detected!("aes"), AES),
+        (is_x86_feature_detected!("pclmulqdq"), PCLMUL),
+        (is_x86_feature_detected!("avx512vbmi"), VBMI),
+        (is_x86_feature_detected!("avx512vbmi2"), VBMI2),
+        (is_x86_feature_detected!("avx512bitalg"), BITALG),
+        (is_x86_feature_detected!("avx512vpopcntdq"), VPOPCNTDQ),
+    ] {
+        if on {
+            ext |= flag;
+        }
     }
-    if has_avx2() {
-        return TargetId::Avx2;
-    }
-    if has_sse2() {
-        return TargetId::Sse2;
-    }
-    TargetId::Scalar
+    let base = if has_avx512() {
+        3
+    } else if has_avx2() {
+        2
+    } else if has_sse2() {
+        1
+    } else {
+        0
+    };
+    Tier::ALL
+        .into_iter()
+        .rev()
+        .find(|t| t.base() <= base && t.extensions() & !ext == 0)
+        .unwrap_or(Tier::Scalar)
 }
 
-#[cfg(target_arch = "aarch64")]
-fn detect_impl() -> TargetId {
-    // NEON is mandatory on aarch64, but we don't have a backend yet.
-    // When the neon backend is added, this will return TargetId::Neon
-    TargetId::Scalar
-}
-
-#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-fn detect_impl() -> TargetId {
-    TargetId::Scalar
+#[cfg(not(target_arch = "x86_64"))]
+fn detect_tier() -> Tier {
+    // NEON is mandatory on aarch64, but there is no NEON backend yet.
+    Tier::Scalar
 }
 
 // ---------------------------------------------------------------------------
@@ -174,49 +170,359 @@ pub trait WithSimd {
 
 /// Dispatch a kernel to the best available SIMD target.
 ///
-/// Detects CPU features (cached after first call) and invokes
-/// `kernel.with_simd(target)` where `target` is the best supported.
-///
-/// Each branch is compiled with the appropriate `#[target_feature]` annotations
-/// so the compiler can generate optimized code for that target.
-///
-/// This function has the same signature on all platforms — on non-x86_64 it
-/// currently always dispatches to the scalar backend.
+/// Uses the [`Cpu`] detected once and cached, see [`Cpu::dispatch`].
 pub fn dispatch<K: WithSimd>(kernel: K) -> K::Output {
-    let target = detect_best_target();
-    dispatch_to(kernel, target)
+    Cpu::cached().dispatch(kernel)
 }
 
 /// Dispatch a kernel to a specific target (useful for testing or forced selection).
 ///
-/// The requested target's CPU features are verified at runtime before use. If
-/// the running CPU does not support the requested target (or the target is not
-/// compiled for this platform), the kernel falls back to the scalar backend.
-/// This makes the function sound to call with any [`TargetId`] on any CPU.
+/// When the running CPU lacks `target`, the kernel runs on the best supported
+/// tier below it (scalar at worst). Sound to call with any [`TargetId`].
 pub fn dispatch_to<K: WithSimd>(kernel: K, target: TargetId) -> K::Output {
-    #[cfg(target_arch = "x86_64")]
-    {
-        match target {
-            // Each arm re-checks the required features at runtime. The guard is
-            // the safety precondition for calling the `#[target_feature]` trampoline
-            TargetId::Avx512 if has_avx512() => {
-                // SAFETY: has_avx512() confirmed the required AVX-512 features at runtime
-                return unsafe { dispatch_avx512(kernel) };
+    let top = match target {
+        TargetId::Avx512 => Tier::Avx512Ext,
+        TargetId::Avx2 => Tier::Avx2Crypto,
+        TargetId::Sse2 => Tier::Sse2Crypto,
+        TargetId::Scalar | TargetId::Neon | TargetId::Uninitialized => {
+            Tier::Scalar
+        }
+    };
+    Cpu::cached().capped(top).dispatch(kernel)
+}
+
+// ---------------------------------------------------------------------------
+// Tier and Cpu — detect once at startup, no checks per operation
+// ---------------------------------------------------------------------------
+
+/// A backend plus the optional extensions its token carries.
+///
+/// Each tier maps to one token type (`Sse2<EXT>`, `Avx2<EXT>`, `Avx512<EXT>`)
+/// and one `#[target_feature]` trampoline, so operations test their extensions
+/// at compile time.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Tier {
+    /// Portable scalar fallback.
+    Scalar = 1,
+    /// SSE2 only.
+    Sse2 = 2,
+    /// SSE2 + SSSE3 + SSE4.1 + AES + PCLMUL.
+    Sse2Crypto = 3,
+    /// AVX2 + FMA.
+    Avx2 = 4,
+    /// AVX2 + FMA + AES + PCLMUL.
+    Avx2Crypto = 5,
+    /// AVX-512F/BW/CD/DQ/VL.
+    Avx512 = 6,
+    /// AVX-512 + AES + PCLMUL.
+    Avx512Crypto = 7,
+    /// AVX-512 + AES + PCLMUL + VBMI + VBMI2 + BITALG + VPOPCNTDQ.
+    Avx512Ext = 8,
+}
+
+impl Tier {
+    /// Every tier, lowest first.
+    pub const ALL: [Self; 8] = [
+        Self::Scalar,
+        Self::Sse2,
+        Self::Sse2Crypto,
+        Self::Avx2,
+        Self::Avx2Crypto,
+        Self::Avx512,
+        Self::Avx512Crypto,
+        Self::Avx512Ext,
+    ];
+
+    /// The backend of this tier.
+    pub fn target(self) -> TargetId {
+        match self {
+            Self::Scalar => TargetId::Scalar,
+            Self::Sse2 | Self::Sse2Crypto => TargetId::Sse2,
+            Self::Avx2 | Self::Avx2Crypto => TargetId::Avx2,
+            Self::Avx512 | Self::Avx512Crypto | Self::Avx512Ext => {
+                TargetId::Avx512
             }
-            TargetId::Avx2 if has_avx2() => {
-                // SAFETY: has_avx2() confirmed AVX2+FMA at runtime
-                return unsafe { dispatch_avx2(kernel) };
-            }
-            TargetId::Sse2 if has_sse2() => {
-                // SAFETY: has_sse2() confirmed SSE2 at runtime
-                return unsafe { dispatch_sse2(kernel) };
-            }
-            // Requested target unsupported on this CPU -> fall through to scalar
-            _ => {}
         }
     }
-    let _ = target;
+
+    /// The [`features`](crate::features) flags the tier's token carries.
+    pub fn extensions(self) -> u32 {
+        use crate::features::{
+            AES, BITALG, PCLMUL, SSE41, SSSE3, VBMI, VBMI2, VPOPCNTDQ,
+        };
+        match self {
+            Self::Scalar | Self::Sse2 => 0,
+            Self::Avx2 | Self::Avx512 => SSSE3 | SSE41,
+            Self::Sse2Crypto | Self::Avx2Crypto | Self::Avx512Crypto => {
+                SSSE3 | SSE41 | AES | PCLMUL
+            }
+            Self::Avx512Ext => {
+                SSSE3 | SSE41 | AES | PCLMUL | VBMI | VBMI2 | BITALG | VPOPCNTDQ
+            }
+        }
+    }
+
+    fn base(self) -> u8 {
+        match self.target() {
+            TargetId::Avx512 => 3,
+            TargetId::Avx2 => 2,
+            TargetId::Sse2 => 1,
+            TargetId::Scalar | TargetId::Neon | TargetId::Uninitialized => 0,
+        }
+    }
+
+    fn covers(self, other: Self) -> bool {
+        other.base() <= self.base()
+            && other.extensions() & !self.extensions() == 0
+    }
+
+    fn from_u8(value: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|t| *t as u8 == value)
+    }
+}
+
+/// CPU capabilities detected once, at startup.
+///
+/// A `Cpu` can only be created by [`Cpu::detect`] (or lowered with
+/// [`Cpu::capped`]), so holding one proves its [`Tier`] runs on this machine.
+/// Dispatching through it goes straight to the tier's trampoline: no feature
+/// checks per call and none inside the operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Cpu {
+    tier: Tier,
+}
+
+impl Cpu {
+    /// Run every feature check once and remember the result.
+    pub fn detect() -> Self {
+        let tier = detect_tier();
+        CHOSEN.store(tier as u8, Ordering::Relaxed);
+        Self { tier }
+    }
+
+    pub(crate) fn cached() -> Self {
+        match Tier::from_u8(CHOSEN.load(Ordering::Relaxed)) {
+            Some(tier) => Self { tier },
+            None => Self::detect(),
+        }
+    }
+
+    /// The tier this CPU runs.
+    pub fn tier(self) -> Tier {
+        self.tier
+    }
+
+    /// The backend of [`tier`](Self::tier).
+    pub fn target(self) -> TargetId {
+        self.tier.target()
+    }
+
+    /// `true` when every flag in `extensions` (see [`features`](crate::features)) is on.
+    pub fn has(self, extensions: u32) -> bool {
+        self.tier.extensions() & extensions == extensions
+    }
+
+    /// The best tier at or below `max` that this CPU also supports.
+    pub fn capped(self, max: Tier) -> Self {
+        let tier = Tier::ALL
+            .into_iter()
+            .rev()
+            .find(|t| *t <= max && self.tier.covers(*t))
+            .unwrap_or(Tier::Scalar);
+        Self { tier }
+    }
+
+    /// Run `kernel` on this tier's token.
+    #[inline]
+    pub fn dispatch<K: WithSimd>(self, kernel: K) -> K::Output {
+        #[cfg(target_arch = "x86_64")]
+        {
+            // SAFETY: a Cpu only holds a tier that detect() found on this CPU
+            unsafe {
+                match self.tier {
+                    Tier::Scalar => kernel.with_simd(Scalar),
+                    Tier::Sse2 => tier_sse2::simd(kernel),
+                    Tier::Sse2Crypto => tier_sse2_crypto::simd(kernel),
+                    Tier::Avx2 => tier_avx2::simd(kernel),
+                    Tier::Avx2Crypto => tier_avx2_crypto::simd(kernel),
+                    Tier::Avx512 => tier_avx512::simd(kernel),
+                    Tier::Avx512Crypto => tier_avx512_crypto::simd(kernel),
+                    Tier::Avx512Ext => tier_avx512_ext::simd(kernel),
+                }
+            }
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        kernel.with_simd(Scalar)
+    }
+
+    /// Run a kernel that uses [`SimdCrypto`] on this tier's token, or its
+    /// scalar path on [`Tier::Scalar`].
+    #[inline]
+    pub fn dispatch_crypto<K: WithSimdCrypto>(self, kernel: K) -> K::Output {
+        #[cfg(target_arch = "x86_64")]
+        {
+            // SAFETY: a Cpu only holds a tier that detect() found on this CPU
+            unsafe {
+                match self.tier {
+                    Tier::Scalar => kernel.with_scalar(),
+                    Tier::Sse2 => tier_sse2::crypto(kernel),
+                    Tier::Sse2Crypto => tier_sse2_crypto::crypto(kernel),
+                    Tier::Avx2 => tier_avx2::crypto(kernel),
+                    Tier::Avx2Crypto => tier_avx2_crypto::crypto(kernel),
+                    Tier::Avx512 => tier_avx512::crypto(kernel),
+                    Tier::Avx512Crypto => tier_avx512_crypto::crypto(kernel),
+                    Tier::Avx512Ext => tier_avx512_ext::crypto(kernel),
+                }
+            }
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        kernel.with_scalar()
+    }
+
+    /// Like [`dispatch_crypto`](Self::dispatch_crypto), but the kernel always
+    /// gets a 128-bit `Sse2` token, compiled with this tier's features (so an
+    /// AVX-512 tier still gets EVEX encodings and fused ops on 128-bit data).
+    #[inline]
+    pub fn dispatch_crypto_128<K: WithSimdCrypto>(
+        self,
+        kernel: K,
+    ) -> K::Output {
+        #[cfg(target_arch = "x86_64")]
+        {
+            // SAFETY: a Cpu only holds a tier that detect() found on this CPU
+            unsafe {
+                match self.tier {
+                    Tier::Scalar => kernel.with_scalar(),
+                    Tier::Sse2 => tier_sse2::crypto_128(kernel),
+                    Tier::Sse2Crypto => tier_sse2_crypto::crypto_128(kernel),
+                    Tier::Avx2 => tier_avx2::crypto_128(kernel),
+                    Tier::Avx2Crypto => tier_avx2_crypto::crypto_128(kernel),
+                    Tier::Avx512 => tier_avx512::crypto_128(kernel),
+                    Tier::Avx512Crypto => {
+                        tier_avx512_crypto::crypto_128(kernel)
+                    }
+                    Tier::Avx512Ext => tier_avx512_ext::crypto_128(kernel),
+                }
+            }
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        kernel.with_scalar()
+    }
+}
+
+/// A kernel entry point picked once for one [`Cpu`].
+///
+/// Built only by [`Cpu::resolve`], [`Cpu::resolve_crypto`] and
+/// [`Cpu::resolve_crypto_128`], so [`call`](Self::call) always lands on a
+/// trampoline this CPU supports: one indirect call, no tier match per call.
+pub struct Resolved<K, R> {
+    entry: unsafe fn(K) -> R,
+}
+
+impl<K, R> Clone for Resolved<K, R> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K, R> Copy for Resolved<K, R> {}
+
+impl<K, R> core::fmt::Debug for Resolved<K, R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Resolved").finish_non_exhaustive()
+    }
+}
+
+impl<K, R> Resolved<K, R> {
+    /// Run `kernel` on the entry point picked at resolve time.
+    #[inline(always)]
+    pub fn call(self, kernel: K) -> R {
+        // SAFETY: entry is a trampoline for a tier that Cpu::detect() found
+        unsafe { (self.entry)(kernel) }
+    }
+}
+
+impl Cpu {
+    /// Pick the [`Cpu::dispatch`] entry point for `K` once.
+    pub fn resolve<K: WithSimd>(self) -> Resolved<K, K::Output> {
+        #[cfg(target_arch = "x86_64")]
+        let entry: unsafe fn(K) -> K::Output = match self.tier {
+            Tier::Scalar => scalar_simd::<K>,
+            Tier::Sse2 => tier_sse2::simd::<K>,
+            Tier::Sse2Crypto => tier_sse2_crypto::simd::<K>,
+            Tier::Avx2 => tier_avx2::simd::<K>,
+            Tier::Avx2Crypto => tier_avx2_crypto::simd::<K>,
+            Tier::Avx512 => tier_avx512::simd::<K>,
+            Tier::Avx512Crypto => tier_avx512_crypto::simd::<K>,
+            Tier::Avx512Ext => tier_avx512_ext::simd::<K>,
+        };
+        #[cfg(not(target_arch = "x86_64"))]
+        let entry: unsafe fn(K) -> K::Output = scalar_simd::<K>;
+        Resolved { entry }
+    }
+
+    /// Pick the [`Cpu::dispatch_crypto`] entry point for `K` once.
+    pub fn resolve_crypto<K: WithSimdCrypto>(self) -> Resolved<K, K::Output> {
+        #[cfg(target_arch = "x86_64")]
+        let entry: unsafe fn(K) -> K::Output = match self.tier {
+            Tier::Scalar => scalar_crypto::<K>,
+            Tier::Sse2 => tier_sse2::crypto::<K>,
+            Tier::Sse2Crypto => tier_sse2_crypto::crypto::<K>,
+            Tier::Avx2 => tier_avx2::crypto::<K>,
+            Tier::Avx2Crypto => tier_avx2_crypto::crypto::<K>,
+            Tier::Avx512 => tier_avx512::crypto::<K>,
+            Tier::Avx512Crypto => tier_avx512_crypto::crypto::<K>,
+            Tier::Avx512Ext => tier_avx512_ext::crypto::<K>,
+        };
+        #[cfg(not(target_arch = "x86_64"))]
+        let entry: unsafe fn(K) -> K::Output = scalar_crypto::<K>;
+        Resolved { entry }
+    }
+
+    /// Pick the [`Cpu::dispatch_crypto_128`] entry point for `K` once.
+    pub fn resolve_crypto_128<K: WithSimdCrypto>(
+        self,
+    ) -> Resolved<K, K::Output> {
+        #[cfg(target_arch = "x86_64")]
+        let entry: unsafe fn(K) -> K::Output = match self.tier {
+            Tier::Scalar => scalar_crypto::<K>,
+            Tier::Sse2 => tier_sse2::crypto_128::<K>,
+            Tier::Sse2Crypto => tier_sse2_crypto::crypto_128::<K>,
+            Tier::Avx2 => tier_avx2::crypto_128::<K>,
+            Tier::Avx2Crypto => tier_avx2_crypto::crypto_128::<K>,
+            Tier::Avx512 => tier_avx512::crypto_128::<K>,
+            Tier::Avx512Crypto => tier_avx512_crypto::crypto_128::<K>,
+            Tier::Avx512Ext => tier_avx512_ext::crypto_128::<K>,
+        };
+        #[cfg(not(target_arch = "x86_64"))]
+        let entry: unsafe fn(K) -> K::Output = scalar_crypto::<K>;
+        Resolved { entry }
+    }
+}
+
+unsafe fn scalar_simd<K: WithSimd>(kernel: K) -> K::Output {
     kernel.with_simd(Scalar)
+}
+
+unsafe fn scalar_crypto<K: WithSimdCrypto>(kernel: K) -> K::Output {
+    kernel.with_scalar()
+}
+
+/// Kernel that can use [`SimdCrypto`], dispatched by [`Cpu::dispatch_crypto`]
+/// and [`Cpu::dispatch_crypto_128`].
+///
+/// Check `S::HAS_CLMUL` / `S::HAS_AES` (compile-time constants) to pick the
+/// hardware path; without them the crypto ops fall back to software.
+pub trait WithSimdCrypto {
+    /// The return type of the kernel.
+    type Output;
+
+    /// Execute the kernel on a SIMD token.
+    fn with_simd<S: SimdOps + SimdCrypto>(self, s: S) -> Self::Output;
+
+    /// Execute the kernel without SIMD (scalar tier).
+    fn with_scalar(self) -> Self::Output;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,31 +681,94 @@ macro_rules! simd_fn {
         }
         $crate::dispatch(__K { $($cap,)* })
     }};
+
+    // Startup-detected Cpu, no captures: `simd_fn!(cpu => |s| -> T { .. })`
+    ($cpu:expr => |$s:ident| -> $ret:ty $body:block) => {{
+        struct __K;
+        impl $crate::WithSimd for __K {
+            type Output = $ret;
+            #[inline(always)]
+            fn with_simd<__S: $crate::SimdOps>(self, $s: __S) -> $ret $body
+        }
+        $crate::Cpu::dispatch($cpu, __K)
+    }};
+
+    // Startup-detected Cpu with typed captures
+    ($cpu:expr => [$($cap:ident : $cap_ty:ty),* $(,)?] |$s:ident| -> $ret:ty $body:block) => {{
+        struct __K { $($cap: $cap_ty,)* }
+        impl $crate::WithSimd for __K {
+            type Output = $ret;
+            #[inline(always)]
+            fn with_simd<__S: $crate::SimdOps>(self, $s: __S) -> $ret {
+                #[allow(unused_variables)]
+                let __K { $($cap,)* } = self;
+                $body
+            }
+        }
+        $crate::Cpu::dispatch($cpu, __K { $($cap,)* })
+    }};
 }
 
 // ---------------------------------------------------------------------------
-// Target-feature trampolines (x86_64)
+// Target-feature trampolines (x86_64), one module per tier
 // ---------------------------------------------------------------------------
 
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "sse2")]
-#[inline(never)]
-unsafe fn dispatch_sse2<K: WithSimd>(kernel: K) -> K::Output {
-    kernel.with_simd(crate::backend::sse2::Sse2::new())
+macro_rules! tier_trampolines {
+    ($($module:ident: $token:ty, $sse_token:ty, $features:literal;)*) => {$(
+        #[cfg(target_arch = "x86_64")]
+        mod $module {
+            use super::{WithSimd, WithSimdCrypto};
+
+            #[target_feature(enable = $features)]
+            #[inline(never)]
+            pub(super) unsafe fn simd<K: WithSimd>(kernel: K) -> K::Output {
+                kernel.with_simd(<$token>::token())
+            }
+
+            #[target_feature(enable = $features)]
+            #[inline(never)]
+            pub(super) unsafe fn crypto<K: WithSimdCrypto>(kernel: K) -> K::Output {
+                kernel.with_simd(<$token>::token())
+            }
+
+            #[target_feature(enable = $features)]
+            #[inline(never)]
+            pub(super) unsafe fn crypto_128<K: WithSimdCrypto>(kernel: K) -> K::Output {
+                kernel.with_simd(<$sse_token>::token())
+            }
+        }
+    )*};
 }
 
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2,fma")]
-#[inline(never)]
-unsafe fn dispatch_avx2<K: WithSimd>(kernel: K) -> K::Output {
-    kernel.with_simd(crate::backend::avx2::Avx2::new())
-}
-
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx512f,avx512bw,avx512cd,avx512dq,avx512vl")]
-#[inline(never)]
-unsafe fn dispatch_avx512<K: WithSimd>(kernel: K) -> K::Output {
-    kernel.with_simd(crate::backend::avx512::Avx512::new())
+tier_trampolines! {
+    tier_sse2:
+        crate::backend::sse2::Sse2<0>,
+        crate::backend::sse2::Sse2<0>,
+        "sse2";
+    tier_sse2_crypto:
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        "sse2,ssse3,sse4.1,aes,pclmulqdq";
+    tier_avx2:
+        crate::backend::avx2::Avx2<{ crate::features::SSSE3 | crate::features::SSE41 }>,
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 }>,
+        "avx2,fma";
+    tier_avx2_crypto:
+        crate::backend::avx2::Avx2<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        "avx2,fma,aes,pclmulqdq";
+    tier_avx512:
+        crate::backend::avx512::Avx512<{ crate::features::SSSE3 | crate::features::SSE41 }>,
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 }>,
+        "avx512f,avx512bw,avx512cd,avx512dq,avx512vl";
+    tier_avx512_crypto:
+        crate::backend::avx512::Avx512<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        "avx512f,avx512bw,avx512cd,avx512dq,avx512vl,aes,pclmulqdq";
+    tier_avx512_ext:
+        crate::backend::avx512::Avx512<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL | crate::features::VBMI | crate::features::VBMI2 | crate::features::BITALG | crate::features::VPOPCNTDQ }>,
+        crate::backend::sse2::Sse2<{ crate::features::SSSE3 | crate::features::SSE41 | crate::features::AES | crate::features::PCLMUL }>,
+        "avx512f,avx512bw,avx512cd,avx512dq,avx512vl,aes,pclmulqdq,avx512vbmi,avx512vbmi2,avx512bitalg,avx512vpopcntdq";
 }
 
 // ---------------------------------------------------------------------------

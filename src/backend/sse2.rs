@@ -31,7 +31,14 @@ use crate::{A16, Aligned};
 /// kernels only by the dispatch machinery after a runtime feature check, which
 /// is why all SSE2 vector operations can have safe signatures.
 #[derive(Clone, Copy, Debug)]
-pub struct Sse2(());
+pub struct Sse2<const EXT: u32 = 0>(());
+
+impl<const EXT: u32> Sse2<EXT> {
+    #[inline(always)]
+    pub(crate) const fn token() -> Self {
+        Sse2(())
+    }
+}
 
 impl Sse2 {
     /// Construct an SSE2 token without checking CPU support.
@@ -41,11 +48,6 @@ impl Sse2 {
     /// obtaining a token through `dispatch`/`dispatch_to`, which checks at runtime.
     #[inline(always)]
     pub unsafe fn new_unchecked() -> Self {
-        Sse2(())
-    }
-
-    #[inline(always)]
-    pub(crate) fn new() -> Self {
         Sse2(())
     }
 }
@@ -110,7 +112,7 @@ impl<T: Lane> M128<T> {
 }
 
 // SAFETY: SSE2 vectors are 128 bits = 16 bytes.
-unsafe impl Simd for Sse2 {
+unsafe impl<const EXT: u32> Simd for Sse2<EXT> {
     type Vec<T: Lane> = V128<T>;
     type Mask<T: Lane> = M128<T>;
     // Half-width is identity for SSE2 (can't go below 128-bit).
@@ -124,7 +126,7 @@ unsafe impl Simd for Sse2 {
 // ---------------------------------------------------------------------------
 
 // dispatch trampoline. Callers through dispatch() always have SSE2 available.
-unsafe impl SimdCore for Sse2 {
+unsafe impl<const EXT: u32> SimdCore for Sse2<EXT> {
     #[inline(always)]
     fn zero<T: Lane>(self) -> V128<T> {
         V128::from_raw(unsafe { _mm_setzero_si128() })
@@ -260,7 +262,7 @@ unsafe impl SimdCore for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require SSE2, guaranteed by dispatch trampoline.
-unsafe impl SimdMemory for Sse2 {
+unsafe impl<const EXT: u32> SimdMemory for Sse2<EXT> {
     #[inline(always)]
     unsafe fn load<T: Lane>(self, ptr: *const T) -> V128<T> {
         V128::from_raw(unsafe { _mm_load_si128(ptr.cast()) })
@@ -608,7 +610,7 @@ unsafe impl SimdMemory for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require SSE2, guaranteed by dispatch trampoline.
-unsafe impl SimdArith for Sse2 {
+unsafe impl<const EXT: u32> SimdArith for Sse2<EXT> {
     #[inline(always)]
     fn add<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         unsafe {
@@ -1221,7 +1223,7 @@ unsafe impl SimdArith for Sse2 {
                         // _mm_mul_epu32: multiplies lanes 0 and 2 (even 32-bit lanes)
                         // producing two 64-bit results.
                         V128::from_raw(_mm_mul_epu32(a.raw, b.raw))
-                    } else if is_x86_feature_detected!("sse4.1") {
+                    } else if EXT & crate::features::SSE41 != 0 {
                         V128::from_raw(_mm_mul_epi32(a.raw, b.raw))
                     } else {
                         // i32 -> i64: scalar fallback (no _mm_mul_epi32 in SSE2)
@@ -1367,7 +1369,7 @@ unsafe impl SimdArith for Sse2 {
     #[inline(always)]
     fn sat_widen_mul_pairwise_add(self, a: V128<u8>, b: V128<i8>) -> V128<i16> {
         unsafe {
-            if is_x86_feature_detected!("ssse3") {
+            if EXT & crate::features::SSSE3 != 0 {
                 V128::from_raw(_mm_maddubs_epi16(a.raw, b.raw))
             } else {
                 // Scalar fallback: pairs of u8*i8 summed with saturation to i16
@@ -1391,7 +1393,7 @@ unsafe impl SimdArith for Sse2 {
     #[inline(always)]
     fn mul_fixed_point_15(self, a: V128<i16>, b: V128<i16>) -> V128<i16> {
         unsafe {
-            if is_x86_feature_detected!("ssse3") {
+            if EXT & crate::features::SSSE3 != 0 {
                 V128::from_raw(_mm_mulhrs_epi16(a.raw, b.raw))
             } else {
                 // Emulate: ((a*b) + (1<<14)) >> 15
@@ -1492,7 +1494,7 @@ unsafe impl SimdArith for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require SSE2.
-unsafe impl SimdBitwise for Sse2 {
+unsafe impl<const EXT: u32> SimdBitwise for Sse2<EXT> {
     #[inline(always)]
     fn and<T: Lane>(self, a: V128<T>, b: V128<T>) -> V128<T> {
         V128::from_raw(unsafe { _mm_and_si128(a.raw, b.raw) })
@@ -2485,7 +2487,7 @@ unsafe impl SimdBitwise for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require SSE2.
-unsafe impl SimdCompare for Sse2 {
+unsafe impl<const EXT: u32> SimdCompare for Sse2<EXT> {
     #[inline(always)]
     fn eq<T: Lane>(self, a: V128<T>, b: V128<T>) -> M128<T> {
         unsafe {
@@ -2662,7 +2664,7 @@ unsafe impl SimdCompare for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require SSE2.
-unsafe impl SimdMask for Sse2 {
+unsafe impl<const EXT: u32> SimdMask for Sse2<EXT> {
     #[inline(always)]
     fn mask_from_vec<T: Lane>(self, v: V128<T>) -> M128<T> {
         unsafe {
@@ -2989,7 +2991,7 @@ unsafe fn sse2_sign_mask<T: Lane>(raw: __m128i) -> __m128i {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All operations use SSE2 intrinsics.
-unsafe impl SimdConvert for Sse2 {
+unsafe impl<const EXT: u32> SimdConvert for Sse2<EXT> {
     #[inline(always)]
     fn promote_to<N: NarrowLane>(self, v: V128<N>) -> V128<N::Wide>
     where
@@ -3424,7 +3426,7 @@ unsafe impl SimdConvert for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All operations use SSE2 intrinsics.
-unsafe impl SimdShuffle for Sse2 {
+unsafe impl<const EXT: u32> SimdShuffle for Sse2<EXT> {
     #[inline(always)]
     fn reverse<T: Lane>(self, v: V128<T>) -> V128<T> {
         unsafe {
@@ -4529,7 +4531,7 @@ unsafe impl SimdShuffle for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All operations use SSE2 intrinsics.
-unsafe impl SimdReduce for Sse2 {
+unsafe impl<const EXT: u32> SimdReduce for Sse2<EXT> {
     #[inline(always)]
     fn sum_of_lanes<T: Lane>(self, v: V128<T>) -> T {
         unsafe {
@@ -4764,7 +4766,7 @@ unsafe impl SimdReduce for Sse2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All float ops use SSE2 intrinsics.
-unsafe impl SimdFloat for Sse2 {
+unsafe impl<const EXT: u32> SimdFloat for Sse2<EXT> {
     #[inline(always)]
     fn sqrt<T: FloatLane>(self, v: V128<T>) -> V128<T> {
         unsafe {
@@ -5340,11 +5342,14 @@ fn read_lane_bits(arr: &[u8; 16], offset: usize, bytes: usize) -> u64 {
 
 // SAFETY: All AES/CLMul intrinsics are guarded by runtime feature detection.
 // When hardware support is unavailable, the software fallback is used.
-unsafe impl crate::ops::SimdCrypto for Sse2 {
+unsafe impl<const EXT: u32> crate::ops::SimdCrypto for Sse2<EXT> {
+    const HAS_CLMUL: bool = EXT & crate::features::PCLMUL != 0;
+    const HAS_AES: bool = EXT & crate::features::AES != 0;
+
     #[inline(always)]
     fn aes_round(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 V128::from_raw(_mm_aesenc_si128(state.raw, round_key.raw))
             } else {
                 let mut block = [0u8; 16];
@@ -5360,7 +5365,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
     fn aes_last_round(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 V128::from_raw(_mm_aesenclast_si128(state.raw, round_key.raw))
             } else {
                 let mut block = [0u8; 16];
@@ -5376,7 +5381,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
     fn aes_round_inv(self, state: V128<u8>, round_key: V128<u8>) -> V128<u8> {
         unsafe {
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 V128::from_raw(_mm_aesdec_si128(state.raw, round_key.raw))
             } else {
                 let mut block = [0u8; 16];
@@ -5396,7 +5401,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
         round_key: V128<u8>,
     ) -> V128<u8> {
         unsafe {
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 V128::from_raw(_mm_aesdeclast_si128(state.raw, round_key.raw))
             } else {
                 let mut block = [0u8; 16];
@@ -5412,7 +5417,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
     fn cl_mul_lower(self, a: V128<u64>, b: V128<u64>) -> V128<u64> {
         unsafe {
-            if is_x86_feature_detected!("pclmulqdq") {
+            if EXT & crate::features::PCLMUL != 0 {
                 V128::from_raw(_mm_clmulepi64_si128(a.raw, b.raw, 0x00))
             } else {
                 let mut arr_a = [0u64; 2];
@@ -5429,7 +5434,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
     fn cl_mul_upper(self, a: V128<u64>, b: V128<u64>) -> V128<u64> {
         unsafe {
-            if is_x86_feature_detected!("pclmulqdq") {
+            if EXT & crate::features::PCLMUL != 0 {
                 V128::from_raw(_mm_clmulepi64_si128(a.raw, b.raw, 0x11))
             } else {
                 let mut arr_a = [0u64; 2];
@@ -5446,7 +5451,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
     fn aes_key_gen_assist<const RCON: i32>(self, v: V128<u8>) -> V128<u8> {
         unsafe {
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 V128::from_raw(_mm_aeskeygenassist_si128(v.raw, RCON))
             } else {
                 let mut block = [0u8; 16];
@@ -5461,7 +5466,7 @@ unsafe impl crate::ops::SimdCrypto for Sse2 {
     #[inline(always)]
     fn aes_inv_mix_columns(self, v: V128<u8>) -> V128<u8> {
         unsafe {
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 V128::from_raw(_mm_aesimc_si128(v.raw))
             } else {
                 let mut block = [0u8; 16];
@@ -5492,7 +5497,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let a = s.splat::<i32>(10);
             let b = s.splat::<i32>(32);
@@ -5509,7 +5514,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let a = s.splat::<f32>(1.5);
             let b = s.splat::<f32>(2.5);
@@ -5524,7 +5529,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let data: [i32; 4] = [1, 2, 3, 4];
             let v: V128<i32> = s.load_u(data.as_ptr());
@@ -5544,7 +5549,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let a = s.splat::<i32>(5);
             let b = s.splat::<i32>(10);
@@ -5559,7 +5564,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let a = s.splat::<u32>(0xFF00FF00);
             let b = s.splat::<u32>(0x00FF00FF);
@@ -5576,7 +5581,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let data: [i32; 4] = [1, 2, 3, 4];
             let v: V128<i32> = s.load_u(data.as_ptr());
@@ -5590,7 +5595,7 @@ mod tests {
         if !has_sse2() {
             return;
         }
-        let s = Sse2::new();
+        let s = Sse2::<0>::token();
         unsafe {
             let v = s.splat::<f32>(4.0);
             let sq: V128<f32> = s.sqrt(v);

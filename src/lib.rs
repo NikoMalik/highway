@@ -63,6 +63,8 @@
 pub mod backend;
 /// Runtime CPU detection and dispatch.
 pub mod dispatch;
+
+pub mod features;
 /// Lane types — scalar elements that occupy a single SIMD vector lane.
 pub mod lane;
 /// Operation sub-traits (arithmetic, memory, bitwise, comparison, etc.).
@@ -95,7 +97,10 @@ pub struct AlignedT<const N: usize, T: SimdElement>([T; N]);
 
 // Re-exports for convenience.
 pub use backend::scalar::Scalar;
-pub use dispatch::{TargetId, WithSimd, dispatch, dispatch_to};
+pub use dispatch::{
+    Cpu, Resolved, TargetId, Tier, WithSimd, WithSimdCrypto, dispatch,
+    dispatch_to,
+};
 pub use lane::Lane;
 pub use ops::SimdOps;
 pub use simd::Simd;

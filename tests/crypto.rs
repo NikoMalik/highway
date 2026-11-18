@@ -582,4 +582,95 @@ mod x86_tests {
             assert_eq!(sse2_upper[1], avx512_upper[1]);
         }
     }
+
+    fn lanes(seed: u64, n: usize) -> Vec<u64> {
+        let mut x = seed;
+        (0..n)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x
+            })
+            .collect()
+    }
+
+    fn soft_clmul(a: u64, b: u64) -> (u64, u64) {
+        let mut acc = 0u128;
+        for i in 0..64 {
+            if (b >> i) & 1 != 0 {
+                acc ^= u128::from(a) << i;
+            }
+        }
+        (acc as u64, (acc >> 64) as u64)
+    }
+
+    struct ClmulKernel {
+        a: Vec<u64>,
+        b: Vec<u64>,
+    }
+
+    impl highway::WithSimdCrypto for ClmulKernel {
+        type Output = Option<(bool, Vec<u64>, Vec<u64>)>;
+
+        fn with_simd<S: highway::SimdOps + SimdCrypto>(
+            self,
+            s: S,
+        ) -> Self::Output {
+            let lanes = s.lanes::<u64>();
+            let va = s.load_slice(&self.a[..lanes]);
+            let vb = s.load_slice(&self.b[..lanes]);
+            let mut lower = vec![0u64; lanes];
+            let mut upper = vec![0u64; lanes];
+            s.store_slice(s.cl_mul_lower(va, vb), &mut lower);
+            s.store_slice(s.cl_mul_upper(va, vb), &mut upper);
+            Some((S::HAS_CLMUL, lower, upper))
+        }
+
+        fn with_scalar(self) -> Self::Output {
+            None
+        }
+    }
+
+    #[test]
+    fn test_clmul_matches_software_on_every_supported_tier() {
+        let cpu = highway::Cpu::detect();
+        for tier in highway::Tier::ALL {
+            let capped = cpu.capped(tier);
+            for seed in 1..32u64 {
+                let (a, b) = (lanes(seed, 8), lanes(seed * 7919, 8));
+                let wide = capped.dispatch_crypto(ClmulKernel {
+                    a: a.clone(),
+                    b: b.clone(),
+                });
+                let narrow = capped.dispatch_crypto_128(ClmulKernel {
+                    a: a.clone(),
+                    b: b.clone(),
+                });
+                for result in [wide, narrow].into_iter().flatten() {
+                    let (hw, lower, upper) = result;
+                    assert_eq!(
+                        hw,
+                        capped.has(highway::features::PCLMUL),
+                        "{tier:?}"
+                    );
+                    for block in 0..lower.len() / 2 {
+                        let i = block * 2;
+                        let (lo, hi) = soft_clmul(a[i], b[i]);
+                        assert_eq!(
+                            (lower[i], lower[i + 1]),
+                            (lo, hi),
+                            "{tier:?} lower block {block}"
+                        );
+                        let (lo, hi) = soft_clmul(a[i + 1], b[i + 1]);
+                        assert_eq!(
+                            (upper[i], upper[i + 1]),
+                            (lo, hi),
+                            "{tier:?} upper block {block}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

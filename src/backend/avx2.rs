@@ -31,7 +31,14 @@ use crate::{A16, A32, Aligned};
 /// handed to kernels only by the dispatch machinery after a runtime feature
 /// check, which is why all AVX2 vector operations can have safe signatures.
 #[derive(Clone, Copy, Debug)]
-pub struct Avx2(());
+pub struct Avx2<const EXT: u32 = 0>(());
+
+impl<const EXT: u32> Avx2<EXT> {
+    #[inline(always)]
+    pub(crate) const fn token() -> Self {
+        Avx2(())
+    }
+}
 
 impl Avx2 {
     /// Construct an AVX2 token without checking CPU support.
@@ -41,11 +48,6 @@ impl Avx2 {
     /// obtaining a token through `dispatch`/`dispatch_to`, which checks at runtime.
     #[inline(always)]
     pub unsafe fn new_unchecked() -> Self {
-        Avx2(())
-    }
-
-    #[inline(always)]
-    pub(crate) fn new() -> Self {
         Avx2(())
     }
 }
@@ -109,7 +111,7 @@ impl<T: Lane> M256<T> {
 }
 
 // SAFETY: AVX2 vectors are 256 bits = 32 bytes.
-unsafe impl Simd for Avx2 {
+unsafe impl<const EXT: u32> Simd for Avx2<EXT> {
     type Vec<T: Lane> = V256<T>;
     type Mask<T: Lane> = M256<T>;
     // Half-width of 256-bit is 128-bit (SSE2 types).
@@ -227,7 +229,7 @@ fn write_lane<T: Lane>(arr: &mut [u8; 32], offset: usize, val: T) {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2, guaranteed by dispatch trampoline.
-unsafe impl SimdCore for Avx2 {
+unsafe impl<const EXT: u32> SimdCore for Avx2<EXT> {
     #[inline(always)]
     fn zero<T: Lane>(self) -> V256<T> {
         V256::from_raw(unsafe { _mm256_setzero_si256() })
@@ -347,7 +349,7 @@ unsafe impl SimdCore for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdMemory for Avx2 {
+unsafe impl<const EXT: u32> SimdMemory for Avx2<EXT> {
     #[inline(always)]
     unsafe fn load<T: Lane>(self, ptr: *const T) -> V256<T> {
         V256::from_raw(unsafe { _mm256_load_si256(ptr.cast()) })
@@ -808,7 +810,7 @@ unsafe impl SimdMemory for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdArith for Avx2 {
+unsafe impl<const EXT: u32> SimdArith for Avx2<EXT> {
     #[inline(always)]
     fn add<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         unsafe {
@@ -1608,7 +1610,7 @@ unsafe impl SimdArith for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdBitwise for Avx2 {
+unsafe impl<const EXT: u32> SimdBitwise for Avx2<EXT> {
     #[inline(always)]
     fn and<T: Lane>(self, a: V256<T>, b: V256<T>) -> V256<T> {
         V256::from_raw(unsafe { _mm256_and_si256(a.raw, b.raw) })
@@ -2634,7 +2636,7 @@ unsafe impl SimdBitwise for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdCompare for Avx2 {
+unsafe impl<const EXT: u32> SimdCompare for Avx2<EXT> {
     #[inline(always)]
     fn eq<T: Lane>(self, a: V256<T>, b: V256<T>) -> M256<T> {
         unsafe {
@@ -2791,7 +2793,7 @@ unsafe impl SimdCompare for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdMask for Avx2 {
+unsafe impl<const EXT: u32> SimdMask for Avx2<EXT> {
     #[inline(always)]
     fn mask_from_vec<T: Lane>(self, v: V256<T>) -> M256<T> {
         unsafe {
@@ -3074,7 +3076,7 @@ unsafe fn avx2_sign_mask<T: Lane>(raw: __m256i) -> __m256i {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdConvert for Avx2 {
+unsafe impl<const EXT: u32> SimdConvert for Avx2<EXT> {
     #[inline(always)]
     fn promote_to<N: NarrowLane>(self, v: V256<N>) -> V256<N::Wide>
     where
@@ -3665,7 +3667,7 @@ unsafe impl SimdConvert for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdShuffle for Avx2 {
+unsafe impl<const EXT: u32> SimdShuffle for Avx2<EXT> {
     #[inline(always)]
     fn reverse<T: Lane>(self, v: V256<T>) -> V256<T> {
         unsafe {
@@ -4825,7 +4827,7 @@ unsafe impl SimdShuffle for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2.
-unsafe impl SimdReduce for Avx2 {
+unsafe impl<const EXT: u32> SimdReduce for Avx2<EXT> {
     #[inline(always)]
     fn sum_of_lanes<T: Lane>(self, v: V256<T>) -> T {
         unsafe {
@@ -5067,7 +5069,7 @@ unsafe impl SimdReduce for Avx2 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX2+FMA.
-unsafe impl SimdFloat for Avx2 {
+unsafe impl<const EXT: u32> SimdFloat for Avx2<EXT> {
     #[inline(always)]
     fn sqrt<T: FloatLane>(self, v: V256<T>) -> V256<T> {
         unsafe {
@@ -5439,7 +5441,10 @@ unsafe impl SimdFloat for Avx2 {
 
 // SAFETY: AES/CLMul intrinsics are guarded by runtime feature detection.
 // Uses VAES/VPCLMULQDQ when available, otherwise splits to 2*128-bit operations.
-unsafe impl crate::ops::SimdCrypto for Avx2 {
+unsafe impl<const EXT: u32> crate::ops::SimdCrypto for Avx2<EXT> {
+    const HAS_CLMUL: bool = EXT & crate::features::PCLMUL != 0;
+    const HAS_AES: bool = EXT & crate::features::AES != 0;
+
     #[inline(always)]
     fn aes_round(self, state: V256<u8>, round_key: V256<u8>) -> V256<u8> {
         unsafe {
@@ -5448,7 +5453,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
             let lo_k = _mm256_castsi256_si128(round_key.raw);
             let hi_k = _mm256_extracti128_si256(round_key.raw, 1);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let lo_r = _mm_aesenc_si128(lo_s, lo_k);
                 let hi_r = _mm_aesenc_si128(hi_s, hi_k);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5485,7 +5490,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
             let lo_k = _mm256_castsi256_si128(round_key.raw);
             let hi_k = _mm256_extracti128_si256(round_key.raw, 1);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let lo_r = _mm_aesenclast_si128(lo_s, lo_k);
                 let hi_r = _mm_aesenclast_si128(hi_s, hi_k);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5522,7 +5527,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
             let lo_k = _mm256_castsi256_si128(round_key.raw);
             let hi_k = _mm256_extracti128_si256(round_key.raw, 1);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let lo_r = _mm_aesdec_si128(lo_s, lo_k);
                 let hi_r = _mm_aesdec_si128(hi_s, hi_k);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5563,7 +5568,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             let hi_s = _mm256_extracti128_si256(state.raw, 1);
             let lo_k = _mm256_castsi256_si128(round_key.raw);
             let hi_k = _mm256_extracti128_si256(round_key.raw, 1);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let lo_r = _mm_aesdeclast_si128(lo_s, lo_k);
                 let hi_r = _mm_aesdeclast_si128(hi_s, hi_k);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5600,7 +5605,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             let hi_a = _mm256_extracti128_si256(a.raw, 1);
             let lo_b = _mm256_castsi256_si128(b.raw);
             let hi_b = _mm256_extracti128_si256(b.raw, 1);
-            if is_x86_feature_detected!("pclmulqdq") {
+            if EXT & crate::features::PCLMUL != 0 {
                 let lo_r = _mm_clmulepi64_si128(lo_a, lo_b, 0x00);
                 let hi_r = _mm_clmulepi64_si128(hi_a, hi_b, 0x00);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5632,7 +5637,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
             let hi_a = _mm256_extracti128_si256(a.raw, 1);
             let lo_b = _mm256_castsi256_si128(b.raw);
             let hi_b = _mm256_extracti128_si256(b.raw, 1);
-            if is_x86_feature_detected!("pclmulqdq") {
+            if EXT & crate::features::PCLMUL != 0 {
                 let lo_r = _mm_clmulepi64_si128(lo_a, lo_b, 0x11);
                 let hi_r = _mm_clmulepi64_si128(hi_a, hi_b, 0x11);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5662,7 +5667,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
         unsafe {
             let lo = _mm256_castsi256_si128(v.raw);
             let hi = _mm256_extracti128_si256(v.raw, 1);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let r_lo = _mm_aeskeygenassist_si128(lo, RCON);
                 let r_hi = _mm_aeskeygenassist_si128(hi, RCON);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5695,7 +5700,7 @@ unsafe impl crate::ops::SimdCrypto for Avx2 {
         unsafe {
             let lo = _mm256_castsi256_si128(v.raw);
             let hi = _mm256_extracti128_si256(v.raw, 1);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let r_lo = _mm_aesimc_si128(lo);
                 let r_hi = _mm_aesimc_si128(hi);
                 V256::from_raw(_mm256_inserti128_si256(
@@ -5741,7 +5746,7 @@ mod tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2::new();
+        let s = Avx2::<0>::token();
         unsafe {
             let a = s.splat::<i32>(10);
             let b = s.splat::<i32>(32);
@@ -5757,7 +5762,7 @@ mod tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2::new();
+        let s = Avx2::<0>::token();
         unsafe {
             let data: [i32; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
             let v: V256<i32> = s.load_u(data.as_ptr());
@@ -5772,7 +5777,7 @@ mod tests {
         if !has_avx2() {
             return;
         }
-        let s = Avx2::new();
+        let s = Avx2::<0>::token();
         unsafe {
             let a = s.splat::<f32>(1.5);
             let b = s.splat::<f32>(2.5);
@@ -5787,7 +5792,7 @@ mod tests {
         if !has_avx2() || !is_x86_feature_detected!("fma") {
             return;
         }
-        let s = Avx2::new();
+        let s = Avx2::<0>::token();
         unsafe {
             let a = s.splat::<f32>(2.0);
             let b = s.splat::<f32>(3.0);

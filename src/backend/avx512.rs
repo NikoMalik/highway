@@ -31,7 +31,14 @@ use crate::simd::{self, Simd};
 /// runtime feature check, which is why all AVX-512 vector operations can have
 /// safe signatures.
 #[derive(Clone, Copy, Debug)]
-pub struct Avx512(());
+pub struct Avx512<const EXT: u32 = 0>(());
+
+impl<const EXT: u32> Avx512<EXT> {
+    #[inline(always)]
+    pub(crate) const fn token() -> Self {
+        Avx512(())
+    }
+}
 
 impl Avx512 {
     /// Construct an AVX-512 token without checking CPU support.
@@ -42,11 +49,6 @@ impl Avx512 {
     /// checks at runtime.
     #[inline(always)]
     pub unsafe fn new_unchecked() -> Self {
-        Avx512(())
-    }
-
-    #[inline(always)]
-    pub(crate) fn new() -> Self {
         Avx512(())
     }
 }
@@ -121,7 +123,7 @@ impl<T: Lane> M512<T> {
 }
 
 // SAFETY: AVX-512 vectors are 512 bits = 64 bytes.
-unsafe impl Simd for Avx512 {
+unsafe impl<const EXT: u32> Simd for Avx512<EXT> {
     type Vec<T: Lane> = V512<T>;
     type Mask<T: Lane> = M512<T>;
     // Half-width of 512-bit is 256-bit (AVX2 types).
@@ -221,7 +223,7 @@ fn write_lane<T: Lane>(arr: &mut [u8; 64], offset: usize, val: T) {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX-512F+BW+DQ+VL, guaranteed by dispatch.
-unsafe impl SimdCore for Avx512 {
+unsafe impl<const EXT: u32> SimdCore for Avx512<EXT> {
     #[inline(always)]
     fn zero<T: Lane>(self) -> V512<T> {
         V512::from_raw(unsafe { _mm512_setzero_si512() })
@@ -370,7 +372,7 @@ unsafe impl SimdCore for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX-512F.
-unsafe impl SimdMemory for Avx512 {
+unsafe impl<const EXT: u32> SimdMemory for Avx512<EXT> {
     #[inline(always)]
     unsafe fn load<T: Lane>(self, ptr: *const T) -> V512<T> {
         V512::from_raw(unsafe { _mm512_load_si512(ptr.cast()) })
@@ -868,7 +870,7 @@ unsafe impl SimdMemory for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX-512F/BW.
-unsafe impl SimdArith for Avx512 {
+unsafe impl<const EXT: u32> SimdArith for Avx512<EXT> {
     #[inline(always)]
     fn add<T: Lane>(self, a: V512<T>, b: V512<T>) -> V512<T> {
         unsafe {
@@ -1631,7 +1633,7 @@ unsafe impl SimdArith for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX-512F.
-unsafe impl SimdBitwise for Avx512 {
+unsafe impl<const EXT: u32> SimdBitwise for Avx512<EXT> {
     #[inline(always)]
     fn and<T: Lane>(self, a: V512<T>, b: V512<T>) -> V512<T> {
         V512::from_raw(unsafe { _mm512_and_si512(a.raw, b.raw) })
@@ -1934,16 +1936,16 @@ unsafe impl SimdBitwise for Avx512 {
         unsafe {
             // Use native VPOPCNTDQ/BITALG when available (Ice Lake+).
             // is_x86_feature_detected! caches after the first call.
-            if T::BYTES == 4 && is_x86_feature_detected!("avx512vpopcntdq") {
+            if T::BYTES == 4 && (EXT & crate::features::VPOPCNTDQ != 0) {
                 return V512::from_raw(native_popcnt_epi32(v.raw));
             }
-            if T::BYTES == 8 && is_x86_feature_detected!("avx512vpopcntdq") {
+            if T::BYTES == 8 && (EXT & crate::features::VPOPCNTDQ != 0) {
                 return V512::from_raw(native_popcnt_epi64(v.raw));
             }
-            if T::BYTES == 1 && is_x86_feature_detected!("avx512bitalg") {
+            if T::BYTES == 1 && (EXT & crate::features::BITALG != 0) {
                 return V512::from_raw(native_popcnt_epi8(v.raw));
             }
-            if T::BYTES == 2 && is_x86_feature_detected!("avx512bitalg") {
+            if T::BYTES == 2 && (EXT & crate::features::BITALG != 0) {
                 return V512::from_raw(native_popcnt_epi16(v.raw));
             }
 
@@ -2371,7 +2373,7 @@ unsafe impl SimdBitwise for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: All intrinsics require AVX-512F/BW.
-unsafe impl SimdCompare for Avx512 {
+unsafe impl<const EXT: u32> SimdCompare for Avx512<EXT> {
     #[inline(always)]
     fn eq<T: Lane>(self, a: V512<T>, b: V512<T>) -> M512<T> {
         unsafe {
@@ -2528,7 +2530,7 @@ unsafe impl SimdCompare for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: AVX-512 mask operations.
-unsafe impl SimdMask for Avx512 {
+unsafe impl<const EXT: u32> SimdMask for Avx512<EXT> {
     #[inline(always)]
     fn mask_from_vec<T: Lane>(self, v: V512<T>) -> M512<T> {
         unsafe {
@@ -2780,7 +2782,7 @@ unsafe fn avx512_sign_mask<T: Lane>(raw: __m512i) -> M512<T> {
 // ---------------------------------------------------------------------------
 
 // SAFETY: AVX-512 conversion intrinsics.
-unsafe impl SimdConvert for Avx512 {
+unsafe impl<const EXT: u32> SimdConvert for Avx512<EXT> {
     #[inline(always)]
     fn promote_to<N: NarrowLane>(self, v: V512<N>) -> V512<N::Wide>
     where
@@ -3175,7 +3177,7 @@ unsafe impl SimdConvert for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: AVX-512 shuffle intrinsics.
-unsafe impl SimdShuffle for Avx512 {
+unsafe impl<const EXT: u32> SimdShuffle for Avx512<EXT> {
     #[inline(always)]
     fn reverse<T: Lane>(self, v: V512<T>) -> V512<T> {
         unsafe {
@@ -3235,7 +3237,7 @@ unsafe impl SimdShuffle for Avx512 {
                 )),
                 _ => {
                     // 1-byte: use VBMI permutexvar_epi8 when available (Ice Lake+).
-                    if is_x86_feature_detected!("avx512vbmi") {
+                    if EXT & crate::features::VBMI != 0 {
                         V512::from_raw(native_permutexvar_epi8(
                             _mm512_set1_epi8(IDX as i8),
                             v.raw,
@@ -3310,7 +3312,7 @@ unsafe impl SimdShuffle for Avx512 {
                 V512::from_raw(_mm512_permutexvar_epi64(idx.raw, v.raw))
             } else if T::BYTES == 2 {
                 V512::from_raw(_mm512_permutexvar_epi16(idx.raw, v.raw))
-            } else if is_x86_feature_detected!("avx512vbmi") {
+            } else if EXT & crate::features::VBMI != 0 {
                 // 8-bit: use permutexvar_epi8 (AVX512VBMI, Ice Lake+)
                 V512::from_raw(native_permutexvar_epi8(idx.raw, v.raw))
             } else {
@@ -3752,11 +3754,10 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 _ => {
                     // Use native VBMI2 compress when available (Ice Lake+).
-                    if T::BYTES == 1 && is_x86_feature_detected!("avx512vbmi2")
-                    {
+                    if T::BYTES == 1 && (EXT & crate::features::VBMI2 != 0) {
                         V512::from_raw(native_compress_epi8(mask.raw, v.raw))
                     } else if T::BYTES == 2
-                        && is_x86_feature_detected!("avx512vbmi2")
+                        && (EXT & crate::features::VBMI2 != 0)
                     {
                         V512::from_raw(native_compress_epi16(
                             mask.raw as __mmask32,
@@ -3873,11 +3874,10 @@ unsafe impl SimdShuffle for Avx512 {
                 }
                 _ => {
                     // Use native VBMI2 compress-store when available (Ice Lake+).
-                    if T::BYTES == 1 && is_x86_feature_detected!("avx512vbmi2")
-                    {
+                    if T::BYTES == 1 && (EXT & crate::features::VBMI2 != 0) {
                         native_compressstoreu_epi8(ptr.cast(), mask.raw, v.raw);
                     } else if T::BYTES == 2
-                        && is_x86_feature_detected!("avx512vbmi2")
+                        && (EXT & crate::features::VBMI2 != 0)
                     {
                         native_compressstoreu_epi16(
                             ptr.cast(),
@@ -4545,7 +4545,7 @@ unsafe impl SimdShuffle for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: AVX-512 reduction intrinsics.
-unsafe impl SimdReduce for Avx512 {
+unsafe impl<const EXT: u32> SimdReduce for Avx512<EXT> {
     #[inline(always)]
     fn sum_of_lanes<T: Lane>(self, v: V512<T>) -> T {
         unsafe {
@@ -4914,7 +4914,7 @@ unsafe impl SimdReduce for Avx512 {
 // ---------------------------------------------------------------------------
 
 // SAFETY: AVX-512F float intrinsics.
-unsafe impl SimdFloat for Avx512 {
+unsafe impl<const EXT: u32> SimdFloat for Avx512<EXT> {
     #[inline(always)]
     fn sqrt<T: FloatLane>(self, v: V512<T>) -> V512<T> {
         unsafe {
@@ -5311,7 +5311,7 @@ macro_rules! avx512_aes_per_block {
         let k1 = _mm512_extracti32x4_epi32($key.raw, 1);
         let k2 = _mm512_extracti32x4_epi32($key.raw, 2);
         let k3 = _mm512_extracti32x4_epi32($key.raw, 3);
-        if is_x86_feature_detected!("aes") {
+        if EXT & crate::features::AES != 0 {
             let r0 = $aes_intrinsic(s0, k0);
             let r1 = $aes_intrinsic(s1, k1);
             let r2 = $aes_intrinsic(s2, k2);
@@ -5361,7 +5361,10 @@ macro_rules! avx512_aes_per_block {
 
 // SAFETY: AES/CLMul intrinsics are guarded by runtime feature detection.
 // Falls back to per-128-bit-block AES-NI or software implementation.
-unsafe impl crate::ops::SimdCrypto for Avx512 {
+unsafe impl<const EXT: u32> crate::ops::SimdCrypto for Avx512<EXT> {
+    const HAS_CLMUL: bool = EXT & crate::features::PCLMUL != 0;
+    const HAS_AES: bool = EXT & crate::features::AES != 0;
+
     #[inline(always)]
     fn aes_round(self, state: V512<u8>, round_key: V512<u8>) -> V512<u8> {
         unsafe {
@@ -5417,7 +5420,7 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
             let mut arr_b = [0u64; 8];
             _mm512_storeu_si512(arr_a.as_mut_ptr().cast(), a.raw);
             _mm512_storeu_si512(arr_b.as_mut_ptr().cast(), b.raw);
-            if is_x86_feature_detected!("pclmulqdq") {
+            if EXT & crate::features::PCLMUL != 0 {
                 for i in (0..8).step_by(2) {
                     let va = _mm_loadu_si128(arr_a[i..].as_ptr().cast());
                     let vb = _mm_loadu_si128(arr_b[i..].as_ptr().cast());
@@ -5443,7 +5446,7 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
             let mut arr_b = [0u64; 8];
             _mm512_storeu_si512(arr_a.as_mut_ptr().cast(), a.raw);
             _mm512_storeu_si512(arr_b.as_mut_ptr().cast(), b.raw);
-            if is_x86_feature_detected!("pclmulqdq") {
+            if EXT & crate::features::PCLMUL != 0 {
                 for i in (0..8).step_by(2) {
                     let va = _mm_loadu_si128(arr_a[i..].as_ptr().cast());
                     let vb = _mm_loadu_si128(arr_b[i..].as_ptr().cast());
@@ -5471,7 +5474,7 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
             let s1 = _mm512_extracti32x4_epi32(v.raw, 1);
             let s2 = _mm512_extracti32x4_epi32(v.raw, 2);
             let s3 = _mm512_extracti32x4_epi32(v.raw, 3);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let r0 = _mm_aeskeygenassist_si128(s0, RCON);
                 let r1 = _mm_aeskeygenassist_si128(s1, RCON);
                 let r2 = _mm_aeskeygenassist_si128(s2, RCON);
@@ -5526,7 +5529,7 @@ unsafe impl crate::ops::SimdCrypto for Avx512 {
             let s1 = _mm512_extracti32x4_epi32(v.raw, 1);
             let s2 = _mm512_extracti32x4_epi32(v.raw, 2);
             let s3 = _mm512_extracti32x4_epi32(v.raw, 3);
-            if is_x86_feature_detected!("aes") {
+            if EXT & crate::features::AES != 0 {
                 let r0 = _mm_aesimc_si128(s0);
                 let r1 = _mm_aesimc_si128(s1);
                 let r2 = _mm_aesimc_si128(s2);
